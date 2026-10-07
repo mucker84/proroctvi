@@ -23,8 +23,16 @@ export const PlayerSheet: React.FC<PlayerSheetProps> = ({
       {/* Header Profile */}
       <div className="flex items-center justify-between border-b border-stone-800 pb-2">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-stone-800 border border-stone-700 flex items-center justify-center text-2xl shadow-inner">
-            {player.heroClass.avatar}
+          <div className="w-12 h-12 rounded-xl bg-stone-800 border border-stone-700 overflow-hidden flex items-center justify-center text-2xl shadow-inner shrink-0">
+            {player.heroClass.image ? (
+              <img
+                src={player.heroClass.image}
+                alt={player.heroClass.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              player.heroClass.avatar
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">

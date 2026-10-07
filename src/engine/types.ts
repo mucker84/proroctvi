@@ -108,6 +108,7 @@ export interface HeroClass {
   title: string
   description: string
   avatar: string
+  image?: string
   baseStrength: number
   baseWill: number
   baseGold: number

@@ -121,8 +121,16 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Slot 1: Host */}
               <div className="p-4 bg-stone-950/80 rounded-2xl border border-stone-800 flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-2xl mb-2">
-                  {HERO_CLASSES.find((h) => h.id === seats?.p1?.heroClassId)?.avatar || '⚔️'}
+                <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-amber-500 flex items-center justify-center text-2xl mb-2 shadow-md bg-stone-900">
+                  {HERO_CLASSES.find((h) => h.id === seats?.p1?.heroClassId)?.image ? (
+                    <img
+                      src={HERO_CLASSES.find((h) => h.id === seats?.p1?.heroClassId)?.image}
+                      alt="Host"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    HERO_CLASSES.find((h) => h.id === seats?.p1?.heroClassId)?.avatar || '⚔️'
+                  )}
                 </div>
                 <div className="text-xs font-bold text-stone-400 uppercase">Hráč 1 (Hostitel)</div>
                 <div className="font-bold text-base text-stone-100 mt-0.5">
@@ -143,10 +151,18 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                   seats?.p2 ? 'border-stone-800' : 'border-dashed border-stone-700'
                 }`}
               >
-                <div className="w-12 h-12 rounded-full bg-blue-500/20 border-2 border-blue-500 flex items-center justify-center text-2xl mb-2">
-                  {seats?.p2
-                    ? HERO_CLASSES.find((h) => h.id === seats.p2?.heroClassId)?.avatar || '🔮'
-                    : '⏳'}
+                <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-blue-500 flex items-center justify-center text-2xl mb-2 shadow-md bg-stone-900">
+                  {seats?.p2 && HERO_CLASSES.find((h) => h.id === seats.p2?.heroClassId)?.image ? (
+                    <img
+                      src={HERO_CLASSES.find((h) => h.id === seats.p2?.heroClassId)?.image}
+                      alt="Guest"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : seats?.p2 ? (
+                    HERO_CLASSES.find((h) => h.id === seats.p2?.heroClassId)?.avatar || '🔮'
+                  ) : (
+                    '⏳'
+                  )}
                 </div>
                 <div className="text-xs font-bold text-stone-400 uppercase">Hráč 2 (Vyzývatel)</div>
 
@@ -293,7 +309,15 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                                 : 'bg-stone-950 border-stone-800 hover:border-stone-700'
                             }`}
                           >
-                            <span className="text-2xl">{hero.avatar}</span>
+                            {hero.image ? (
+                              <img
+                                src={hero.image}
+                                alt={hero.name}
+                                className="w-10 h-10 rounded-lg object-cover border border-amber-500/40 shadow-sm shrink-0"
+                              />
+                            ) : (
+                              <span className="text-2xl">{hero.avatar}</span>
+                            )}
                             <div>
                               <div className="font-bold text-xs text-stone-200">{hero.name}</div>
                               <div className="text-[10px] text-stone-400 line-clamp-1">

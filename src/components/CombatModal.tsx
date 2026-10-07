@@ -135,7 +135,17 @@ export const CombatModal: React.FC<CombatModalProps> = ({
         <div className="grid grid-cols-2 gap-4">
           {/* Player Card */}
           <div className="p-4 bg-stone-950/80 rounded-xl border border-stone-800 flex flex-col items-center">
-            <div className="text-3xl mb-1">{player.heroClass.avatar}</div>
+            {player.heroClass.image ? (
+              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-500 shadow-lg mb-2">
+                <img
+                  src={player.heroClass.image}
+                  alt={player.heroClass.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="text-3xl mb-1">{player.heroClass.avatar}</div>
+            )}
             <div className="font-bold text-sm text-stone-100">{player.name}</div>
             <div className="text-xs text-amber-400 font-semibold">{player.heroClass.name}</div>
 
@@ -162,9 +172,19 @@ export const CombatModal: React.FC<CombatModalProps> = ({
 
           {/* Enemy Card */}
           <div className="p-4 bg-stone-950/80 rounded-xl border border-red-950 flex flex-col items-center">
-            <div className="text-3xl mb-1">
-              {currentCombat.isSphereGuardian ? '👑' : '👹'}
-            </div>
+            {currentCombat.enemy.image ? (
+              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-red-600 shadow-lg mb-2">
+                <img
+                  src={currentCombat.enemy.image}
+                  alt={currentCombat.enemy.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="text-3xl mb-1">
+                {currentCombat.isSphereGuardian ? '👑' : '👹'}
+              </div>
+            )}
             <div className="font-bold text-sm text-red-400">{currentCombat.enemy.name}</div>
             <div className="text-xs text-stone-400 font-semibold">
               {currentCombat.isSphereGuardian ? 'Strážce Sféry' : 'Monstrum'}

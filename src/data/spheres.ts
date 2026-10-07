@@ -19,6 +19,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
       rewardExp: 5,
       description: 'Prastarý kolos z plamenů a roztavené horniny střežící plamenný artefakt.',
       specialAbility: 'Imunita vůči normálnímu ohni, způsobuje popáleniny.',
+      image: 'art/guardian_fire.jpg',
     },
     artifact: {
       id: 'art_fire_sword',
@@ -48,6 +49,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
       rewardExp: 5,
       description: 'Ledový veleještěr, jehož dech zmrazí i tu nejodolnější krev v žilách.',
       specialAbility: 'Mrazivý dech: Zmrazí zbraň soupeře při hodu 6 na kostce.',
+      image: 'art/guardian_ice.jpg',
     },
     artifact: {
       id: 'art_ice_shield',

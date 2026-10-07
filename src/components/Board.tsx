@@ -145,12 +145,14 @@ export const Board: React.FC<BoardProps> = ({
 
         {/* Center of the Board: The 5 Astral Spheres & Kingdom Heart */}
         <div
-          className="col-start-2 col-end-10 row-start-2 row-end-8 bg-stone-900/60 rounded-2xl border border-stone-800 p-6 flex flex-col justify-between items-center relative overflow-hidden backdrop-blur-sm"
+          className="col-start-2 col-end-10 row-start-2 row-end-8 bg-stone-900/80 rounded-2xl border border-stone-800 p-6 flex flex-col justify-between items-center relative overflow-hidden backdrop-blur-sm shadow-inner"
         >
-          {/* Background Map Watermark / Emblem */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none text-9xl">
-            🔮
-          </div>
+          {/* Background Map Artwork */}
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-35 pointer-events-none"
+            style={{ backgroundImage: `url('art/map.jpg')` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/50 to-stone-950/80 pointer-events-none" />
 
           <div className="text-center z-10">
             <h2 className="text-2xl font-black text-amber-400 tracking-wider uppercase font-serif">
