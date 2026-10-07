@@ -3,17 +3,17 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Board } from './components/Board'
 import { CardModal } from './components/CardModal'
 import { CombatModal } from './components/CombatModal'
-import { DiceRoller } from './components/DiceRoller'
 import { LobbyScreen } from './components/LobbyScreen'
+import { MobileGameView } from './components/MobileGameView'
 import { PlayerSheet } from './components/PlayerSheet'
 import { ShopModal } from './components/ShopModal'
+import { TurnActionPanel } from './components/TurnActionPanel'
 import { BOARD_TILES } from './data/board'
 import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
 import {
   createInitialGame,
   drawCardForTerrain,
-  getPossibleMoves,
   startCombatWithMonster,
 } from './engine/gameEngine'
 import {
@@ -43,6 +43,10 @@ export const App: React.FC = () => {
   const [drawnCard, setDrawnCard] = useState<AdventureCard | null>(null)
   const [activeCombat, setActiveCombat] = useState<CombatState | null>(null)
   const [hasRolledForMove, setHasRolledForMove] = useState(false)
+  const [hasCompletedTileAction, setHasCompletedTileAction] = useState(false)
+  const [lastDiceRoll, setLastDiceRoll] = useState<[number, number] | null>(null)
+  const [lastDirection, setLastDirection] = useState<'cw' | 'ccw'>('cw')
+  const [tileBeforeRoll, setTileBeforeRoll] = useState<number>(0)
   const [claimedSpheres, setClaimedSpheres] = useState<Record<SphereElement, string | null>>({
     fire: null,
     ice: null,
@@ -188,51 +192,118 @@ export const App: React.FC = () => {
     setAppScreen('LOBBY')
   }
 
-  // Dice roll for movement
-  const handleMoveDiceRoll = (dice: [number, number]) => {
+  // Automatic move after dice roll
+  const handleRollDiceAndMove = (dice: [number, number], direction: 'cw' | 'ccw') => {
     if (!isMyTurn) return
 
     const totalSteps = dice[0] + dice[1]
-    const moves = getPossibleMoves(activePlayer.currentTileId, totalSteps)
-    setValidMoves(moves)
-    setHasRolledForMove(true)
+    const startTileId = activePlayer.currentTileId
+    setTileBeforeRoll(startTileId)
 
-    const nextState: GameState = {
-      ...game,
-      diceValues: dice,
-      phase: 'MOVEMENT',
-      gameLog: [
-        `${activePlayer.name} hodil ${dice[0]} + ${dice[1]} = ${totalSteps}. Vyber cílové pole na plánu.`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
-    pushStateUpdate(nextState)
-  }
-
-  // Move to tile
-  const handleTileClick = (targetTileId: number) => {
-    if (!isMyTurn || !validMoves.includes(targetTileId)) return
+    const targetTileId =
+      direction === 'cw'
+        ? (startTileId + totalSteps) % BOARD_TILES.length
+        : (startTileId - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
 
     const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
+
     const updatedPlayers = [...game.players]
     updatedPlayers[game.activePlayerIndex] = {
       ...updatedPlayers[game.activePlayerIndex],
       currentTileId: targetTileId,
     }
 
+    setLastDiceRoll(dice)
+    setLastDirection(direction)
+    setHasRolledForMove(true)
+    setHasCompletedTileAction(false)
+    setSelectedTile(targetTile)
+    setValidMoves([])
+
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      diceValues: dice,
+      phase: 'TILE_ACTION',
+      gameLog: [
+        `${activePlayer.name} hodil ${totalSteps} (🎲 ${dice[0]} + ${dice[1]}) a dorazil na pole #${targetTileId} (${targetTile.name}).`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
+    pushStateUpdate(nextState)
+  }
+
+  // Switch direction to the opposite tile
+  const handleSwitchDirection = () => {
+    if (!isMyTurn || !lastDiceRoll) return
+
+    const totalSteps = lastDiceRoll[0] + lastDiceRoll[1]
+    const newDir: 'cw' | 'ccw' = lastDirection === 'cw' ? 'ccw' : 'cw'
+
+    const altTileId =
+      newDir === 'cw'
+        ? (tileBeforeRoll + totalSteps) % BOARD_TILES.length
+        : (tileBeforeRoll - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
+
+    const targetTile = BOARD_TILES.find((t) => t.id === altTileId) || BOARD_TILES[0]
+
+    const updatedPlayers = [...game.players]
+    updatedPlayers[game.activePlayerIndex] = {
+      ...updatedPlayers[game.activePlayerIndex],
+      currentTileId: altTileId,
+    }
+
+    setLastDirection(newDir)
+    setSelectedTile(targetTile)
+
     const nextState: GameState = {
       ...game,
       players: updatedPlayers,
       phase: 'TILE_ACTION',
       gameLog: [
-        `${activePlayer.name} se přesunul na pole #${targetTileId} (${targetTile.name}).`,
+        `${activePlayer.name} změnil směr chůze a přešel na pole #${altTileId} (${targetTile.name}).`,
         ...game.gameLog.slice(0, 15),
       ],
     }
-
-    setValidMoves([])
-    setSelectedTile(targetTile)
     pushStateUpdate(nextState)
+  }
+
+  // Resting action: Heal 1 Strength or 1 Will
+  const handleRest = () => {
+    if (!isMyTurn) return
+
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+
+    let restMessage = ''
+    if (currentPlayer.currentStrength < currentPlayer.maxStrength) {
+      currentPlayer.currentStrength += 1
+      restMessage = '+1 Síla (Život)'
+    } else if (currentPlayer.currentWill < currentPlayer.maxWill) {
+      currentPlayer.currentWill += 1
+      restMessage = '+1 Vůle (Mana)'
+    } else {
+      restMessage = 'hrdina je plně zdráv'
+    }
+
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    setHasCompletedTileAction(true)
+
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      gameLog: [
+        `${currentPlayer.name} odpočívá na poli #${currentPlayer.currentTileId}: ${restMessage}.`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
+    pushStateUpdate(nextState)
+  }
+
+  // Inspect tile on board click
+  const handleTileClick = (targetTileId: number) => {
+    const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
+    setSelectedTile(targetTile)
   }
 
   // Draw adventure card
@@ -318,6 +389,7 @@ export const App: React.FC = () => {
     }
 
     setActiveCombat(null)
+    setHasCompletedTileAction(true)
     pushStateUpdate(nextState)
   }
 
@@ -344,6 +416,7 @@ export const App: React.FC = () => {
     }
 
     setDrawnCard(null)
+    setHasCompletedTileAction(true)
     pushStateUpdate(nextState)
   }
 
@@ -423,6 +496,8 @@ export const App: React.FC = () => {
     if (!isMyTurn) return
 
     setHasRolledForMove(false)
+    setHasCompletedTileAction(false)
+    setLastDiceRoll(null)
     setValidMoves([])
     setDrawnCard(null)
 
@@ -460,8 +535,38 @@ export const App: React.FC = () => {
     )
   }
 
+  const steps = lastDiceRoll ? lastDiceRoll[0] + lastDiceRoll[1] : 0
+  const altTileId =
+    lastDirection === 'cw'
+      ? (tileBeforeRoll - steps + BOARD_TILES.length) % BOARD_TILES.length
+      : (tileBeforeRoll + steps) % BOARD_TILES.length
+  const alternateTile = BOARD_TILES.find((t) => t.id === altTileId) || BOARD_TILES[0]
+
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col justify-between selection:bg-amber-500 selection:text-stone-950 pb-8">
+    <>
+    <MobileGameView
+      game={game}
+      roomCode={roomCode}
+      isOnline={isOnline}
+      isMyTurn={isMyTurn}
+      mySeat={mySeat}
+      selectedTile={selectedTile}
+      hasRolledForMove={hasRolledForMove}
+      hasCompletedTileAction={hasCompletedTileAction}
+      lastDiceRoll={lastDiceRoll}
+      alternateTile={alternateTile}
+      onSelectTile={setSelectedTile}
+      onRollDice={handleRollDiceAndMove}
+      onSwitchDirection={handleSwitchDirection}
+      onDrawCard={handleDrawCard}
+      onOpenShop={() => setShowShop(true)}
+      onEnterSphere={handleEnterSphere}
+      onEndTurn={handleEndTurn}
+      onRest={handleRest}
+      onUseItem={handleUseItem}
+      onLobby={() => setAppScreen('LOBBY')}
+    />
+    <div className="hidden lg:flex min-h-screen bg-stone-950 text-stone-100 flex-col justify-between selection:bg-amber-500 selection:text-stone-950 pb-8">
       {/* Top Header Navbar */}
       <header className="w-full bg-stone-900/90 border-b border-stone-800 px-6 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -540,65 +645,23 @@ export const App: React.FC = () => {
             onSelectTile={setSelectedTile}
           />
 
-          {/* Action Dashboard Under Board */}
-          <div className="w-full max-w-4xl bg-stone-900/80 border border-stone-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 backdrop-blur-sm">
-            {/* Dice Roller */}
-            <DiceRoller
-              onRollComplete={handleMoveDiceRoll}
-              disabled={hasRolledForMove || !isMyTurn}
-              label={
-                !isMyTurn
-                  ? 'Čekám na soupeře'
-                  : hasRolledForMove
-                  ? 'Hod vyhodnocen'
-                  : 'Hodit na pohyb'
-              }
-            />
-
-            {/* Tile Interaction Buttons */}
-            <div className="flex flex-col gap-2">
-              <div className="text-xs text-stone-400">
-                Stojíš na poli: <span className="font-bold text-stone-100">{currentTile.name}</span> (
-                {currentTile.terrain})
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* Shop/Training action */}
-                {(currentTile.terrain === 'city' ||
-                  currentTile.terrain === 'training' ||
-                  currentTile.terrain === 'temple' ||
-                  currentTile.terrain === 'camp') && (
-                  <button
-                    onClick={() => setShowShop(true)}
-                    disabled={!isMyTurn}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
-                  >
-                    🏪 {currentTile.specialActionTitle || 'Otevřít nabídku'}
-                  </button>
-                )}
-
-                {/* Astral Gate action */}
-                {currentTile.hasAstralGate && (
-                  <button
-                    onClick={() => handleEnterSphere(currentTile.hasAstralGate!)}
-                    disabled={!isMyTurn}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-xs uppercase rounded-xl shadow animate-pulse cursor-pointer transition-all"
-                  >
-                    🌀 Vstoupit do Sféry
-                  </button>
-                )}
-
-                {/* Draw Card button */}
-                <button
-                  onClick={handleDrawCard}
-                  disabled={!isMyTurn}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-stone-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
-                >
-                  🎴 Tahat kartu dobrodružství
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* Intuitive Turn Action Hub: Automatic Movement & Action Choices */}
+          <TurnActionPanel
+            player={activePlayer}
+            currentTile={currentTile}
+            alternateTile={alternateTile}
+            isMyTurn={isMyTurn}
+            hasRolledForMove={hasRolledForMove}
+            hasCompletedTileAction={hasCompletedTileAction}
+            lastDiceRoll={lastDiceRoll}
+            onRollDice={handleRollDiceAndMove}
+            onSwitchDirection={handleSwitchDirection}
+            onDrawCard={handleDrawCard}
+            onOpenShop={() => setShowShop(true)}
+            onEnterSphere={handleEnterSphere}
+            onRest={handleRest}
+            onEndTurn={handleEndTurn}
+          />
         </div>
 
         {/* Right Column: Player Sheets & Game Log */}
@@ -632,13 +695,18 @@ export const App: React.FC = () => {
         </div>
       </main>
 
+    </div>
+
       {/* Modals */}
       {drawnCard && (
         <CardModal
           card={drawnCard}
           onEngageCombat={handleEngageCombat}
           onClaimTreasure={handleClaimTreasure}
-          onFlee={() => setDrawnCard(null)}
+          onFlee={() => {
+            setDrawnCard(null)
+            setHasCompletedTileAction(true)
+          }}
         />
       )}
 
@@ -667,7 +735,10 @@ export const App: React.FC = () => {
           onLearnSkill={handleLearnSkill}
           onTrainStat={handleTrainStat}
           onHeal={handleHeal}
-          onClose={() => setShowShop(false)}
+          onClose={() => {
+            setShowShop(false)
+            setHasCompletedTileAction(true)
+          }}
         />
       )}
 
@@ -692,7 +763,7 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

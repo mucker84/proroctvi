@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./mobile.css";
 
 @layer base {
   body {

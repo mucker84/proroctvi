@@ -94,6 +94,7 @@ export interface AstralSphere {
 export interface BoardTile {
   id: number
   name: string
+  image?: string
   terrain: TerrainType
   connections: number[]
   waterConnections?: number[]

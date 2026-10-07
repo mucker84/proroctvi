@@ -50,4 +50,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Implementace online multiplayeru pro 2 hráče (kódy místností, Upstash Redis API, synchronizace tahů) · hotovo
 2026-10-07 · Antigravity · Vytvoření samostatné Lobby obrazovky (online čekárna, pozvánky) a rozšíření na 10 hrdinů a plné balíčky karet · hotovo
 2026-10-07 · Antigravity · Generování dark fantasy ilustrací všech 10 hrdinů, strážců a mapy království, integrace portrétů do UI, desky a soubojů · hotovo
+2026-10-07 · Antigravity · Intuitivní ovládání: automatický posun po hodu kostkami, TurnActionPanel s okamžitou nabídkou akcí na poli, volba směru, odpočinek a plynulý průběh tahu · hotovo
 
