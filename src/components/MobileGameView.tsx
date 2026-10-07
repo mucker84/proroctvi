@@ -57,7 +57,7 @@ export function MobileGameView({
   }, [activePlayer.currentTileId, tab])
 
   return (
-    <div className="mobile-game lg:hidden">
+    <div className="mobile-game">
       <header className="mobile-header">
         <div>
           <div className="mobile-brand">✦ PROROCTVÍ</div>

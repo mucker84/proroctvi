@@ -62,4 +62,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Intuitivní ovládání: automatický posun po hodu kostkami, TurnActionPanel s okamžitou nabídkou akcí na poli, volba směru, odpočinek a plynulý průběh tahu · hotovo
 2026-10-07 · Codex · Mobilní herní rozhraní pro dva hráče, vodorovný plán, tahové akce, deníky, záznam, úprava lobby a dialogů, podpora dalších ilustrací lokací · hotovo
 2026-10-07 · Antigravity · Uložení kompletní projektové dokumentace (README.md, ARCHITECTURE.md, plán nasazení, registrace v CML) · hotovo
+2026-10-07 · Antigravity · Sjednocení PC a mobilní verze do moderního plynulého zážitku (desktop widescreen layout, plynulá cesta, dock a akční centrum) · hotovo
 

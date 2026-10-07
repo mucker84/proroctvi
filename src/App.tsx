@@ -1,13 +1,10 @@
 import confetti from 'canvas-confetti'
 import React, { useEffect, useRef, useState } from 'react'
-import { Board } from './components/Board'
 import { CardModal } from './components/CardModal'
 import { CombatModal } from './components/CombatModal'
 import { LobbyScreen } from './components/LobbyScreen'
 import { MobileGameView } from './components/MobileGameView'
-import { PlayerSheet } from './components/PlayerSheet'
 import { ShopModal } from './components/ShopModal'
-import { TurnActionPanel } from './components/TurnActionPanel'
 import { BOARD_TILES } from './data/board'
 import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
@@ -566,136 +563,6 @@ export const App: React.FC = () => {
       onUseItem={handleUseItem}
       onLobby={() => setAppScreen('LOBBY')}
     />
-    <div className="hidden lg:flex min-h-screen bg-stone-950 text-stone-100 flex-col justify-between selection:bg-amber-500 selection:text-stone-950 pb-8">
-      {/* Top Header Navbar */}
-      <header className="w-full bg-stone-900/90 border-b border-stone-800 px-6 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🔮</span>
-          <div>
-            <h1 className="text-xl font-black text-amber-400 font-serif tracking-wider uppercase m-0 leading-tight">
-              Proroctví
-            </h1>
-            <p className="text-[11px] text-stone-400 m-0">
-              Kolo {game.turnNumber} • {isOnline ? `Místnost: ${roomCode}` : 'Lokální hra'}
-            </p>
-          </div>
-        </div>
-
-        {/* Turn indicator & Quick action buttons */}
-        <div className="flex items-center gap-3">
-          {/* Lobby button */}
-          <button
-            onClick={() => setAppScreen('LOBBY')}
-            className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl border border-stone-700 cursor-pointer transition-all"
-          >
-            🏛️ Lobby
-          </button>
-
-          {/* Turn indicator */}
-          <div className="flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800">
-            <span className="text-xs text-stone-400">Na tahu:</span>
-            <span className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
-              <span>{activePlayer.heroClass.avatar}</span>
-              <span>{activePlayer.name}</span>
-            </span>
-            {isOnline && (
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${
-                  isMyTurn ? 'bg-amber-500 text-stone-950' : 'bg-stone-800 text-stone-400'
-                }`}
-              >
-                {isMyTurn ? 'Jsi na tahu' : 'Soupeř'}
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={handleEndTurn}
-            disabled={!isMyTurn}
-            className={`px-4 py-2 font-bold text-xs uppercase rounded-xl border transition-all ${
-              isMyTurn
-                ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-stone-700 cursor-pointer'
-                : 'bg-stone-900 text-stone-600 border-stone-800 cursor-not-allowed'
-            }`}
-          >
-            Ukončit tah ➔
-          </button>
-        </div>
-      </header>
-
-      {/* Online Status Banner when opponent is playing */}
-      {isOnline && !isMyTurn && (
-        <div className="w-full bg-indigo-950/90 border-b border-indigo-800/80 px-4 py-2 text-center text-xs font-bold text-indigo-200 flex items-center justify-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-          <span>Právě hraje soupeř ({activePlayer.name}). Počkej, až dokončí svůj tah...</span>
-        </div>
-      )}
-
-      {/* Main Game Container */}
-      <main className="w-full max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
-        {/* Left Column: Board & Movement Controls */}
-        <div className="flex-1 flex flex-col items-center gap-4">
-          <Board
-            players={game.players}
-            activePlayer={activePlayer}
-            validMoves={validMoves}
-            onTileClick={handleTileClick}
-            onEnterSphereClick={handleEnterSphere}
-            selectedTileId={selectedTile.id}
-            onSelectTile={setSelectedTile}
-          />
-
-          {/* Intuitive Turn Action Hub: Automatic Movement & Action Choices */}
-          <TurnActionPanel
-            player={activePlayer}
-            currentTile={currentTile}
-            alternateTile={alternateTile}
-            isMyTurn={isMyTurn}
-            hasRolledForMove={hasRolledForMove}
-            hasCompletedTileAction={hasCompletedTileAction}
-            lastDiceRoll={lastDiceRoll}
-            onRollDice={handleRollDiceAndMove}
-            onSwitchDirection={handleSwitchDirection}
-            onDrawCard={handleDrawCard}
-            onOpenShop={() => setShowShop(true)}
-            onEnterSphere={handleEnterSphere}
-            onRest={handleRest}
-            onEndTurn={handleEndTurn}
-          />
-        </div>
-
-        {/* Right Column: Player Sheets & Game Log */}
-        <div className="w-full lg:w-96 flex flex-col gap-4">
-          <h2 className="text-sm font-extrabold text-stone-400 uppercase tracking-wider font-mono">
-            Hráči v aréně
-          </h2>
-
-          {game.players.map((p, idx) => (
-            <PlayerSheet
-              key={p.id}
-              player={p}
-              isActive={idx === game.activePlayerIndex}
-              onUseItem={idx === game.activePlayerIndex && isMyTurn ? handleUseItem : undefined}
-            />
-          ))}
-
-          {/* Game Log */}
-          <div className="bg-stone-900/80 border border-stone-800 rounded-2xl p-4 flex flex-col gap-2">
-            <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest">
-              Záznam hry
-            </h3>
-            <div className="h-44 overflow-y-auto flex flex-col gap-1 text-[11px] font-mono text-stone-300 pr-1">
-              {game.gameLog.map((log, i) => (
-                <div key={i} className="border-b border-stone-800/60 pb-1">
-                  {log}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </main>
-
-    </div>
 
       {/* Modals */}
       {drawnCard && (
