@@ -32,14 +32,15 @@ Určeno pro nasazení na Vercel (7ax.fun).
 
 1. [x] Inicializace projektu (Vite + React + TS + Tailwind v4 + Lucide)
 2. [x] Založení architektury a PLAN.md
-3. [/] Datový model a definice herního plánu, postav a karet
-4. [/] Herní deska s interaktivním zobrazením, figurkami a pohybem
-5. [ ] Kostky (Dice Roller) a losování karet (Card Drawer)
-6. [ ] Herní logika tahů, nákupů a soubojů
-7. [ ] Vstup do sfér a souboje se strážci o artefakty
-8. [ ] Vercel deployment test & optimalizace pro mobil/desktop
+3. [x] Datový model a definice herního plánu, postav a karet
+4. [x] Herní deska s interaktivním zobrazením, figurkami a pohybem
+5. [x] Kostky (Dice Roller) a losování karet (Card Drawer s 3D flipem)
+6. [x] Herní logika tahů, nákupů a soubojů
+7. [x] Vstup do sfér a souboje se strážci o 5 artefaktů
+8. [ ] Vercel deployment na 7ax.fun & multiplayer rozšíření
 
 ---
 
 ## Denik
 2026-10-07 · Antigravity · Inicializace projektu, Vite + TS + Tailwind, zprovoznění struktury a plánu hry · rozpracovano
+2026-10-07 · Antigravity · Implementace hracího plánu (32 polí), 5 astrálních sfér, animovaných kostek, 3D karet, soubojového systému a nákupů · hotovo
