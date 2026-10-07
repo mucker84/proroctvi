@@ -110,7 +110,7 @@ export const CombatModal: React.FC<CombatModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-stone-900 border-2 border-red-900/80 rounded-2xl shadow-2xl p-6 flex flex-col gap-4">
+      <div className="mobile-combat-content w-full max-w-2xl bg-stone-900 border-2 border-red-900/80 rounded-2xl shadow-2xl p-6 flex flex-col gap-4">
         {/* Arena Header */}
         <div className="flex items-center justify-between border-b border-stone-800 pb-3">
           <div className="flex items-center gap-2">

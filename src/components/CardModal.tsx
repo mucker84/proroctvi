@@ -20,12 +20,12 @@ export const CardModal: React.FC<CardModalProps> = ({
   const isTreasure = card.type === 'treasure'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="mobile-modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="flex flex-col items-center max-w-sm w-full">
         {/* Animated Card Container */}
         <div
           onClick={() => setIsFlipped(true)}
-          className={`relative w-72 h-96 cursor-pointer rounded-2xl transition-all duration-700 [transform-style:preserve-3d] shadow-2xl ${
+          className={`mobile-flip-card relative w-72 h-96 cursor-pointer rounded-2xl transition-all duration-700 [transform-style:preserve-3d] shadow-2xl ${
             isFlipped ? '[transform:rotateY(180deg)]' : 'hover:scale-105 animate-pulse'
           }`}
         >
@@ -48,7 +48,7 @@ export const CardModal: React.FC<CardModalProps> = ({
           </div>
 
           {/* Card Front (Líc karty) */}
-          <div className="absolute inset-0 w-full h-full rounded-2xl bg-stone-900 border-4 border-amber-500 p-5 flex flex-col justify-between shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden]">
+          <div className="mobile-flip-front absolute inset-0 w-full h-full rounded-2xl bg-stone-900 border-4 border-amber-500 p-5 flex flex-col justify-between shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden]">
             <div>
               {/* Card Header */}
               <div className="flex items-center justify-between border-b border-stone-800 pb-2">

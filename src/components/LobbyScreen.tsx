@@ -295,7 +295,8 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                       Vyber svého hrdinu
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1.5">
+                    <p className="sm:hidden text-[11px] text-stone-500 mt-1">Další hrdiny zobrazíš posunutím do strany.</p>
+                    <div className="flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-3 gap-2 mt-1.5 pb-2">
                       {HERO_CLASSES.map((hero) => {
                         const isSelected = selectedHeroId === hero.id
                         return (
@@ -303,7 +304,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                             key={hero.id}
                             type="button"
                             onClick={() => setSelectedHeroId(hero.id)}
-                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                            className={`min-w-[132px] sm:min-w-0 snap-start p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-400'
                                 : 'bg-stone-950 border-stone-800 hover:border-stone-700'

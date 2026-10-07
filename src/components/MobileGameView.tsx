@@ -133,7 +133,7 @@ export function MobileGameView({
           </section>}
         </main>
       ) : tab === 'players' ? (
-        <main className="mobile-secondary"><h1><Users size={20} /> Hrdinové</h1>{game.players.map((player, index) => <PlayerSheet key={player.id} player={player} isActive={index === game.activePlayerIndex} onUseItem={index === game.activePlayerIndex && isMyTurn ? onUseItem : () => {}} />)}</main>
+        <main className="mobile-secondary"><h1><Users size={20} /> Hrdinové</h1>{game.players.map((player, index) => <PlayerSheet key={player.id} player={player} isActive={index === game.activePlayerIndex} onUseItem={index === game.activePlayerIndex && isMyTurn ? onUseItem : undefined} />)}</main>
       ) : (
         <main className="mobile-secondary"><h1><ScrollText size={20} /> Záznam hry</h1><div className="mobile-log">{game.gameLog.map((entry, index) => <p key={`${index}-${entry}`}>{entry}</p>)}</div></main>
       )}

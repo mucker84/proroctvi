@@ -675,7 +675,7 @@ export const App: React.FC = () => {
               key={p.id}
               player={p}
               isActive={idx === game.activePlayerIndex}
-              onUseItem={handleUseItem}
+              onUseItem={idx === game.activePlayerIndex && isMyTurn ? handleUseItem : undefined}
             />
           ))}
 
