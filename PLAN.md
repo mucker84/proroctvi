@@ -45,4 +45,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Inicializace projektu, Vite + TS + Tailwind, zprovoznění struktury a plánu hry · rozpracovano
 2026-10-07 · Antigravity · Implementace hracího plánu (32 polí), 5 astrálních sfér, animovaných kostek, 3D karet, soubojového systému a nákupů · hotovo
 2026-10-07 · Antigravity · Založení GitHub repozitáře mucker84/proroctvi a push zdrojových kódů · hotovo
+2026-10-07 · Antigravity · Příprava deploy.ps1 a nasazení buildu do c:\xampp\htdocs\7ax-fun\proroctvi (7ax.fun) · hotovo
 
