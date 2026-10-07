@@ -1,0 +1,76 @@
+import { HeroClass } from '../engine/types'
+
+export const HERO_CLASSES: HeroClass[] = [
+  {
+    id: 'warrior',
+    name: 'Válečník',
+    title: 'Mistr meče a štítu',
+    description: 'Statný bojovník zocelený v nespočtu bitev. Exceluje ve fyzickém souboji a odolnosti.',
+    avatar: '⚔️',
+    baseStrength: 6,
+    baseWill: 2,
+    baseGold: 5,
+    startTileId: 0, // Staré Město
+    passiveAbility: 'Bojový instinkt: +1 k Fyzickému hodu kostkou v boji s monstry.',
+  },
+  {
+    id: 'mage',
+    name: 'Kouzelník',
+    title: 'Učenec arkánních umění',
+    description: 'Vládce mocných kouzel a mentálních soubojů. Tělo je křehké, ale mysl nezdolná.',
+    avatar: '🔮',
+    baseStrength: 3,
+    baseWill: 6,
+    baseGold: 8,
+    startTileId: 16, // Přístavní Město
+    passiveAbility: 'Vnitřní zřídlo: Obnovuje 1 Vůli navíc při odpočinku v chrámu.',
+  },
+  {
+    id: 'ranger',
+    name: 'Hraničář',
+    title: 'Strážce divočiny',
+    description: 'Pohybuje se tiše v lesích i horách. Dokáže se vyhnout nežádoucímu nebezpečí a udeřit z dálky.',
+    avatar: '🏹',
+    baseStrength: 5,
+    baseWill: 3,
+    baseGold: 6,
+    startTileId: 2, // Les
+    passiveAbility: 'Lesní běžec: Může projít lesem o 1 pole dále než ostatní.',
+  },
+  {
+    id: 'thief',
+    name: 'Zloděj',
+    title: 'Stín městských uliček',
+    description: 'Rychlé prsty, bystré oko a záliba ve zlatě. V nouzi dokáže soupeře oklamat i okrást.',
+    avatar: '🗡️',
+    baseStrength: 4,
+    baseWill: 4,
+    baseGold: 12,
+    startTileId: 0,
+    passiveAbility: 'Šikovné ruce: Získává o 2 Zlaťáky více z každé odměny nebo truhly.',
+  },
+  {
+    id: 'druid',
+    name: 'Druid',
+    title: 'Hlas prastarého lesa',
+    description: 'Spojenec přírodních sil. Umí léčit svá zranění a mluvit s lesními tvory.',
+    avatar: '🌿',
+    baseStrength: 4,
+    baseWill: 5,
+    baseGold: 4,
+    startTileId: 8, // Chráněný háj
+    passiveAbility: 'Bylinkářství: Může se zdarma vyléčit o 1 Sílu v každé lesní provincii.',
+  },
+  {
+    id: 'paladin',
+    name: 'Paladin',
+    title: 'Rytíř světla',
+    description: 'Svatý bojovník chráněný vírou. Stejně dobře vládne těžkým kladivem jako posvátnou modlitbou.',
+    avatar: '🛡️',
+    baseStrength: 5,
+    baseWill: 4,
+    baseGold: 7,
+    startTileId: 16,
+    passiveAbility: 'Svatá ochrana: Imunita vůči kletbám a zákeřným efektům.',
+  },
+]
