@@ -37,7 +37,7 @@ Určeno pro nasazení na Vercel (7ax.fun).
 5. [x] Kostky (Dice Roller) a losování karet (Card Drawer s 3D flipem)
 6. [x] Herní logika tahů, nákupů a soubojů
 7. [x] Vstup do sfér a souboje se strážci o 5 artefaktů
-8. [ ] Vercel deployment na 7ax.fun & multiplayer rozšíření
+8. [x] Vercel deployment na 7ax.fun & živé spuštění
 
 ---
 
@@ -46,4 +46,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Implementace hracího plánu (32 polí), 5 astrálních sfér, animovaných kostek, 3D karet, soubojového systému a nákupů · hotovo
 2026-10-07 · Antigravity · Založení GitHub repozitáře mucker84/proroctvi a push zdrojových kódů · hotovo
 2026-10-07 · Antigravity · Příprava deploy.ps1 a nasazení buildu do c:\xampp\htdocs\7ax-fun\proroctvi (7ax.fun) · hotovo
+2026-10-07 · Antigravity · Nasazení a ověření funkčnosti na https://7ax.fun/proroctvi/ · hotovo
 
