@@ -17,6 +17,7 @@ export interface RoomResponse {
     p2: RoomSeat | null
   }
   state?: GameState
+  started?: boolean
   error?: string
 }
 
@@ -75,6 +76,19 @@ export async function updateOnlineRoomState(
 ): Promise<RoomResponse> {
   return postRoom({
     action: 'update',
+    code,
+    token,
+    state,
+  })
+}
+
+export async function startOnlineRoomGame(
+  code: string,
+  token: string,
+  state: GameState
+): Promise<RoomResponse> {
+  return postRoom({
+    action: 'start',
     code,
     token,
     state,

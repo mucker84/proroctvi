@@ -4,7 +4,7 @@ export const HERO_CLASSES: HeroClass[] = [
   {
     id: 'warrior',
     name: 'Válečník',
-    title: 'Mistr meče a štítu',
+    title: 'Mistr meče a těžké zbroje',
     description: 'Statný bojovník zocelený v nespočtu bitev. Exceluje ve fyzickém souboji a odolnosti.',
     avatar: '⚔️',
     baseStrength: 6,
@@ -28,7 +28,7 @@ export const HERO_CLASSES: HeroClass[] = [
   {
     id: 'ranger',
     name: 'Hraničář',
-    title: 'Strážce divočiny',
+    title: 'Strážce divočiny a lukostřelec',
     description: 'Pohybuje se tiše v lesích i horách. Dokáže se vyhnout nežádoucímu nebezpečí a udeřit z dálky.',
     avatar: '🏹',
     baseStrength: 5,
@@ -64,13 +64,61 @@ export const HERO_CLASSES: HeroClass[] = [
   {
     id: 'paladin',
     name: 'Paladin',
-    title: 'Rytíř světla',
+    title: 'Rytíř světla a spravedlnosti',
     description: 'Svatý bojovník chráněný vírou. Stejně dobře vládne těžkým kladivem jako posvátnou modlitbou.',
     avatar: '🛡️',
     baseStrength: 5,
     baseWill: 4,
     baseGold: 7,
-    startTileId: 16,
+    startTileId: 6, // Sluneční Chrám
     passiveAbility: 'Svatá ochrana: Imunita vůči kletbám a zákeřným efektům.',
+  },
+  {
+    id: 'monk',
+    name: 'Mnich',
+    title: 'Poustevník klášterních hor',
+    description: 'Mistr neozbrojeného boje a vnitřní harmonie. Nepotřebuje zbraně, jeho tělo i mysl jsou zbraní.',
+    avatar: '🥋',
+    baseStrength: 5,
+    baseWill: 5,
+    baseGold: 3,
+    startTileId: 20, // Měsíční svatyně
+    passiveAbility: 'Železná pěst: Má přirozený bonus +1 k útoku i bez zbraně v ruce.',
+  },
+  {
+    id: 'witch',
+    name: 'Vědma',
+    title: 'Znalkyně bylin a kleteb',
+    description: 'Moudrá žena z bažin. Umí namíchat lektvary z čehokoliv a proklínat své nepřátele.',
+    avatar: '🧙‍♀️',
+    baseStrength: 4,
+    baseWill: 5,
+    baseGold: 7,
+    startTileId: 17, // Mlžná Blata
+    passiveAbility: 'Vaření lektvarů: Může na začátku tahu proměnit 2 byliny v Léčivý lektvar.',
+  },
+  {
+    id: 'mercenary',
+    name: 'Žoldnéř',
+    title: 'Bojovník za zlaťáky',
+    description: 'Ostřílený válečník, který slouží tomu, kdo nabídne nejvíc. Mistr zbraní všech druhů.',
+    avatar: '🪓',
+    baseStrength: 6,
+    baseWill: 3,
+    baseGold: 10,
+    startTileId: 16, // Přístavní Město
+    passiveAbility: 'Válečná kořist: Po každém vítězném boji získává +1 Zlaťák navíc.',
+  },
+  {
+    id: 'warlock',
+    name: 'Nekromant / Černokněžník',
+    title: 'Vládce temných rituálů',
+    description: 'Manipuluje se stíny a životní silou protivníků. Dokáže vysávat sílu z poražených.',
+    avatar: '💀',
+    baseStrength: 3,
+    baseWill: 7,
+    baseGold: 5,
+    startTileId: 18, // Temný Hvozd
+    passiveAbility: 'Pohlcení duše: Při porážce nepřítele v mentálním boji obnoví 2 Vůle.',
   },
 ]

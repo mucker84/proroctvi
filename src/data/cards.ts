@@ -1,13 +1,15 @@
 import { AdventureCard, Item, Skill, Spell } from '../engine/types'
 
 export const ADVENTURE_CARDS: AdventureCard[] = [
-  // --- LES (FOREST) ---
+  // ==========================================
+  // --- LES (FOREST) DECK ---
+  // ==========================================
   {
     id: 'f_wolf',
     name: 'Smečka divokých vlků',
     terrain: 'forest',
     type: 'monster',
-    description: 'Vyhladovělí vlci obklíčili tvou stezku.',
+    description: 'Vyhladovělí vlci obklíčili tvou stezku a cerí tesáky.',
     monster: {
       id: 'm_wolf',
       name: 'Vlčí smečka',
@@ -16,7 +18,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       will: 1,
       rewardGold: 2,
       rewardExp: 2,
-      description: 'Rychlé a agresivní šelmy.',
+      description: 'Rychlé a agresivní šelmy lesa.',
     },
   },
   {
@@ -41,7 +43,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     name: 'Lesní víla a pramen',
     terrain: 'forest',
     type: 'treasure',
-    description: 'Mystická bytost ti nabízí napití z léčivého pramene.',
+    description: 'Mystická lesní víla ti nabízí napití z čarovného pramene a dary lesa.',
     rewardGold: 3,
     rewardExp: 2,
   },
@@ -60,17 +62,81 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       rewardGold: 4,
       rewardExp: 4,
       description: 'Kůra tvrdá jako ocel.',
-      specialAbility: 'Tělo ze dřeva: Ignoruje první bod zranění.',
+      specialAbility: 'Dřevěná kůže: Ignoruje první bod zranění.',
+    },
+  },
+  {
+    id: 'f_bear',
+    name: 'Zuřivý jeskynní medvěd',
+    terrain: 'forest',
+    type: 'monster',
+    description: 'Obrovská šelma vyrušená ze zimního spánku se na tebe vrhá s řevem.',
+    monster: {
+      id: 'm_bear',
+      name: 'Lesní medvěd',
+      combatType: 'physical',
+      strength: 6,
+      will: 2,
+      rewardGold: 3,
+      rewardExp: 3,
+      description: 'Drtivá síla medvědích tlap.',
+    },
+  },
+  {
+    id: 'f_spider',
+    name: 'Obří pavouk stínů',
+    terrain: 'forest',
+    type: 'monster',
+    description: 'Z koruny stromů na tebe spadla lepkavá pavučina a jedovatý pavouk.',
+    monster: {
+      id: 'm_spider',
+      name: 'Pavouk stínů',
+      combatType: 'physical',
+      strength: 5,
+      will: 3,
+      rewardGold: 3,
+      rewardExp: 3,
+      description: 'Jedovaté kusadla.',
+      specialAbility: 'Ochromující jed: Snižuje soupeřovu obranu.',
+    },
+  },
+  {
+    id: 'f_hermit',
+    name: 'Poustevník v dutém dubu',
+    terrain: 'forest',
+    type: 'treasure',
+    description: 'Moudrý stařec ti vyprávěl dávná proroctví a daroval vzácný váček bylin a mincí.',
+    rewardGold: 5,
+    rewardExp: 3,
+  },
+  {
+    id: 'f_basilisk',
+    name: 'Lesní Bazilišek',
+    terrain: 'forest',
+    type: 'monster',
+    description: 'Plaz s kamenným pohledem číhající v houštinách.',
+    monster: {
+      id: 'm_basilisk',
+      name: 'Bazilišek',
+      combatType: 'both',
+      strength: 6,
+      will: 6,
+      rewardGold: 6,
+      rewardExp: 4,
+      description: 'Kombinovaný fyzický i mentální útok pohledem.',
+      specialAbility: 'Zkamenění: Útok vyžaduje vysokou vůli i sílu.',
     },
   },
 
-  // --- HORY (MOUNTAIN) ---
+  // ==========================================
+  // --- HORY (MOUNTAIN) DECK ---
+  // ==========================================
   {
     id: 'm_goblin',
     name: 'Skřetí přepadení',
     terrain: 'mountain',
     type: 'monster',
-    description: 'Skřeti útočí z jeskynních puklin.',
+    description: 'Tlupa horských skřetů útočí ze skalních puklin s oštěpy.',
     monster: {
       id: 'm_goblin',
       name: 'Skřetí tlupa',
@@ -79,7 +145,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       will: 2,
       rewardGold: 3,
       rewardExp: 2,
-      description: 'Zákeřní a krvelační tvorové hor.',
+      description: 'Zákeřní a krvelační tvorové skal.',
     },
   },
   {
@@ -96,15 +162,15 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       will: 3,
       rewardGold: 7,
       rewardExp: 4,
-      description: 'Jeho úder dokáže zlomit štít na kusy.',
+      description: 'Drtivý úder kamenným kyjem.',
     },
   },
   {
     id: 'm_gem_vein',
-    name: 'Žíla drahokamů',
+    name: 'Žíla třpytivých drahokamů',
     terrain: 'mountain',
     type: 'treasure',
-    description: 'Ve skále jsi objevil třpytivé drahokamy a zlato!',
+    description: 'Ve skále jsi objevil třpytivé rubíny a zlatou žílu!',
     rewardGold: 8,
     rewardExp: 2,
   },
@@ -122,17 +188,81 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       will: 7,
       rewardGold: 4,
       rewardExp: 4,
-      description: 'Beztělesný duch, proti kterému platí jen síla vůle!',
+      description: 'Beztělesný duch – bojuje se pouze silou Vůle!',
+    },
+  },
+  {
+    id: 'm_harpy',
+    name: 'Skalní Harpyje',
+    terrain: 'mountain',
+    type: 'monster',
+    description: 'Křídlaté nestvůry s ženskou tváří a ostrými pařáty útočí ze vzduchu.',
+    monster: {
+      id: 'm_harpy',
+      name: 'Harpyje',
+      combatType: 'physical',
+      strength: 5,
+      will: 4,
+      rewardGold: 4,
+      rewardExp: 3,
+      description: 'Útok ze vzduchu.',
+      specialAbility: 'První úder: Útočí dříve než pomalé pozemní zbraně.',
+    },
+  },
+  {
+    id: 'm_golem',
+    name: 'Rune Golem',
+    terrain: 'mountain',
+    type: 'monster',
+    description: 'Prastarý kamenný strážce oživený horskými runami.',
+    monster: {
+      id: 'm_golem',
+      name: 'Žulový Golem',
+      combatType: 'physical',
+      strength: 9,
+      will: 4,
+      rewardGold: 8,
+      rewardExp: 5,
+      description: 'Téměř nezničitelný kamenný kolos.',
+      specialAbility: 'Kamenné tělo: Imunita vůči běžným sečným zbraním.',
+    },
+  },
+  {
+    id: 'm_dwarf_forge',
+    name: 'Opuštěná trpasličí kovářská dílna',
+    terrain: 'mountain',
+    type: 'treasure',
+    description: 'Uvnitř jeskyně jsi našel starou truhlici se skvěle vykovanou ocelí a mincemi.',
+    rewardGold: 7,
+    rewardExp: 3,
+  },
+  {
+    id: 'm_dragon_whelp',
+    name: 'Dračí mládě',
+    terrain: 'mountain',
+    type: 'monster',
+    description: 'I mladý horský drak dokáže plivat oheň a má ostré drápy.',
+    monster: {
+      id: 'm_dragon_whelp',
+      name: 'Drak ze Štítů',
+      combatType: 'both',
+      strength: 7,
+      will: 6,
+      rewardGold: 9,
+      rewardExp: 5,
+      description: 'Chrlí plameny a bojuje všemi smysly.',
     },
   },
 
-  // --- PLÁNĚ (PLAINS) ---
+  // ==========================================
+  // --- PLÁNĚ (PLAINS) DECK ---
+  // ==========================================
   {
     id: 'p_boar',
     name: 'Divoký kanec',
     terrain: 'plains',
     type: 'monster',
-    description: 'Rozzuřený divočák s ostrými kly.',
+    description: 'Rozzuřený divočák s ostrými kly útočící z vysoké trávy.',
     monster: {
       id: 'm_boar',
       name: 'Obří kanec',
@@ -170,14 +300,59 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       description: 'Zákeřná bestie útočící jedem i drápy.',
     },
   },
+  {
+    id: 'p_nomad_raiders',
+    name: 'Kočovní nájezdníci na koních',
+    terrain: 'plains',
+    type: 'monster',
+    description: 'Rychlí jezdci se zahnutými šavlemi útočí v oblaku prachu.',
+    monster: {
+      id: 'm_nomad',
+      name: 'Náčelník nájezdníků',
+      combatType: 'physical',
+      strength: 5,
+      will: 3,
+      rewardGold: 6,
+      rewardExp: 3,
+      description: 'Zkušený jezdec na koni.',
+    },
+  },
+  {
+    id: 'p_obelisk',
+    name: 'Prastarý runový obelisk',
+    terrain: 'plains',
+    type: 'treasure',
+    description: 'Dotekem magického monolitu jsi načerpal starověkou moudrost a nalezl obětní zlato.',
+    rewardGold: 4,
+    rewardExp: 4,
+  },
+  {
+    id: 'p_griffin',
+    name: 'Stepní Gryf',
+    terrain: 'plains',
+    type: 'monster',
+    description: 'Vznešený tvor s tělem lva a hlavou orla krouží nad tvou hlavou.',
+    monster: {
+      id: 'm_griffin',
+      name: 'Zlatý Gryf',
+      combatType: 'physical',
+      strength: 7,
+      will: 4,
+      rewardGold: 7,
+      rewardExp: 4,
+      description: 'Dravý a silný pán plání.',
+    },
+  },
 
-  // --- VODA (WATER) ---
+  // ==========================================
+  // --- VODA (WATER) DECK ---
+  // ==========================================
   {
     id: 'w_serpent',
     name: 'Jezerní had',
     terrain: 'water',
     type: 'monster',
-    description: 'Obrovský vodní plaz vyrazil z hlubin.',
+    description: 'Obrovský vodní plaz vyrazil z hlubin a rozráží vlny.',
     monster: {
       id: 'm_serpent',
       name: 'Hlubinný had',
@@ -191,10 +366,10 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
   },
   {
     id: 'w_siren',
-    name: 'Sirény a vábení',
+    name: 'Sirény a líbezné vábení',
     terrain: 'water',
     type: 'monster',
-    description: 'Zpěv mořských panen se pokouší ovládnout tvé smysly.',
+    description: 'Zpěv mořských panen se pokouší ovládnout tvou mysl a svést tě do záhuby.',
     monster: {
       id: 'm_siren',
       name: 'Mořská siréna',
@@ -203,21 +378,75 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
       will: 6,
       rewardGold: 4,
       rewardExp: 3,
-      description: 'Boj pouze silou Vůle a magie!',
+      description: 'Boj pouze silou Vůle a mysli!',
     },
   },
   {
     id: 'w_chest',
-    name: 'Vyplavená truhla',
+    name: 'Vyplavená pirátská truhla',
     terrain: 'water',
     type: 'treasure',
-    description: 'Na břehu leží zapomenutá truhla z potopené lodi.',
+    description: 'Na písečném břehu leží zapomenutá truhla okovaná mosazí z potopeného škuneru.',
     rewardGold: 7,
     rewardExp: 2,
   },
+  {
+    id: 'w_pirates',
+    name: 'Říční piráti',
+    terrain: 'water',
+    type: 'monster',
+    description: 'Rychlá pirátská šalupa zahákovala tvůj člun.',
+    monster: {
+      id: 'm_pirates',
+      name: 'Pirátský kapitán',
+      combatType: 'physical',
+      strength: 5,
+      will: 3,
+      rewardGold: 7,
+      rewardExp: 3,
+      description: 'Bojovník se šavlí a pistolí.',
+    },
+  },
+  {
+    id: 'w_elemental',
+    name: 'Vodní živel',
+    terrain: 'water',
+    type: 'monster',
+    description: 'Vířící vodní proud zformovaný do obří vodní postavy.',
+    monster: {
+      id: 'm_elemental',
+      name: 'Vířivý elementál',
+      combatType: 'both',
+      strength: 7,
+      will: 7,
+      rewardGold: 8,
+      rewardExp: 5,
+      description: 'Mystický elementál odolný vůči zbraním.',
+    },
+  },
+  {
+    id: 'w_pearl',
+    name: 'Zářící černá perla',
+    terrain: 'water',
+    type: 'treasure',
+    description: 'V hluboké zátoce jsi vylovil obří lasturu obsahující černou perlu nesmírné ceny.',
+    rewardGold: 10,
+    rewardExp: 3,
+  },
 ]
 
+// ==========================================
+// --- SHOP ITEMS (ZBOŽÍ & VÝBAVA) ---
+// ==========================================
 export const SHOP_ITEMS: Item[] = [
+  {
+    id: 'item_dagger',
+    name: 'Lovecká dýka',
+    type: 'weapon',
+    price: 2,
+    strengthBonus: 1,
+    description: 'Lehká zbraň do zálohy (+1 Síla).',
+  },
   {
     id: 'item_sword',
     name: 'Ocelový meč',
@@ -236,12 +465,28 @@ export const SHOP_ITEMS: Item[] = [
   },
   {
     id: 'item_bow',
-    name: 'Lovecký luk',
+    name: 'Elfí luk',
     type: 'weapon',
     price: 6,
     strengthBonus: 2,
-    description: 'Umožňuje zasáhnout nepřítele ještě před zahájením fyzického střetu (První úder).',
+    description: 'Umožňuje zasáhnout nepřítele z dálky s prvním úderem (+2 Síla).',
     effect: 'První úder v boji',
+  },
+  {
+    id: 'item_halberd',
+    name: 'Strážní halaparta',
+    type: 'weapon',
+    price: 8,
+    strengthBonus: 4,
+    description: 'Dlouhá dřevcová zbraň královské gardy (+4 Síla).',
+  },
+  {
+    id: 'item_magic_staff',
+    name: 'Hůl arkánní síly',
+    type: 'weapon',
+    price: 8,
+    willBonus: 3,
+    description: 'Kouzelnická hůl s krystalem posilující kouzla a mentální útok (+3 Vůle).',
   },
   {
     id: 'item_leather_armor',
@@ -252,12 +497,20 @@ export const SHOP_ITEMS: Item[] = [
     description: 'Pevná vyztužená kůže snižující utržená zranění o 1.',
   },
   {
-    id: 'item_plate_armor',
-    name: 'Plátová zbroj',
+    id: 'item_chainmail',
+    name: 'Kroužková košile',
     type: 'armor',
-    price: 9,
+    price: 6,
     defenseBonus: 2,
-    description: 'Masivní rytířská zbroj pohlcující 2 body fyzického zranění.',
+    description: 'Spolehlivé ocelové kroužky chránící trup (+2 Obrana).',
+  },
+  {
+    id: 'item_plate_armor',
+    name: 'Rytířská plátová zbroj',
+    type: 'armor',
+    price: 10,
+    defenseBonus: 3,
+    description: 'Masivní těžká zbroj pohlcující 3 body fyzického zranění v každém kole.',
   },
   {
     id: 'item_shield',
@@ -265,7 +518,15 @@ export const SHOP_ITEMS: Item[] = [
     type: 'shield',
     price: 3,
     defenseBonus: 1,
-    description: 'Spolehlivý štít pro odrážení útoků.',
+    description: 'Spolehlivý štít pro odrážení útoků (+1 Obrana).',
+  },
+  {
+    id: 'item_tower_shield',
+    name: 'Těžká pavéza',
+    type: 'shield',
+    price: 6,
+    defenseBonus: 2,
+    description: 'Masivní obranný štít zakrývající celé tělo (+2 Obrana).',
   },
   {
     id: 'item_potion_heal',
@@ -284,22 +545,65 @@ export const SHOP_ITEMS: Item[] = [
     effect: 'heal_3_will',
   },
   {
+    id: 'item_elixir_full',
+    name: 'Elixír obnovy',
+    type: 'potion',
+    price: 7,
+    description: 'Obnoví všechny chybějící životy (Sílu) i Vůli na maximum.',
+    effect: 'heal_full',
+  },
+  {
     id: 'item_horse',
-    name: 'Bojový kůň',
+    name: 'Válečný kůň',
     type: 'accessory',
     price: 8,
-    description: 'Umožňuje pohybovat se po pláních a cestách až o 2 pole za tah.',
+    description: 'Umožňuje pohybovat se po pláních a cestách až o 2 pole za tah navíc.',
+  },
+  {
+    id: 'item_ring_protect',
+    name: 'Prsten ochrany',
+    type: 'accessory',
+    price: 7,
+    defenseBonus: 1,
+    willBonus: 1,
+    description: 'Magický prsten z ryzího stříbra (+1 Obrana, +1 Vůle).',
+  },
+  {
+    id: 'item_boots_speed',
+    name: 'Okřídlené boty',
+    type: 'accessory',
+    price: 9,
+    description: 'Dovolují projít přes jakoukoliv překážku a přidávají +1 k pohybu.',
   },
 ]
 
+// ==========================================
+// --- DOVEDNOSTI K VÝCVIKU (SKILLS) ---
+// ==========================================
 export const AVAILABLE_SKILLS: Skill[] = [
   {
     id: 'skill_combat_master',
     name: 'Bojové mistrovství',
     category: 'combat',
     costExp: 3,
-    description: 'Trénink s instruktory zvyšuje tvou přesnost.',
+    description: 'Trénink s mistry meče zvyšuje přesnost tvých zásahů.',
     effect: '+1 k hodu kostkou v každém fyzickém boji.',
+  },
+  {
+    id: 'skill_shield_master',
+    name: 'Štítový val',
+    category: 'combat',
+    costExp: 3,
+    description: 'Dokonalé krytí za štítem.',
+    effect: 'Při držení štítu snižuje utržené poškození o další 1 bod.',
+  },
+  {
+    id: 'skill_quick_strike',
+    name: 'Bleskový úder',
+    category: 'combat',
+    costExp: 4,
+    description: 'Schopnost udeřit dříve, než nepřítel stačí zareagovat.',
+    effect: 'Automatický první úder v boji.',
   },
   {
     id: 'skill_iron_will',
@@ -310,30 +614,57 @@ export const AVAILABLE_SKILLS: Skill[] = [
     effect: '+1 k hodu kostkou v mentálním boji.',
   },
   {
+    id: 'skill_meditation',
+    name: 'Meditace a soustředění',
+    category: 'magic',
+    costExp: 3,
+    description: 'Rychlá obnova duševních sil.',
+    effect: 'Obnovuje 1 Vůli navíc na začátku každého tvého tahu.',
+  },
+  {
     id: 'skill_first_aid',
-    name: 'První pomoc',
+    name: 'Polní první pomoc',
     category: 'survival',
     costExp: 2,
-    description: 'Schopnost ošetřit svá zranění v polních podmínkách.',
-    effect: 'Obnoví 1 Sílu na konci každého úspěšného souboje.',
+    description: 'Schopnost ošetřit svá zranění bezprostředně po bitvě.',
+    effect: 'Obnoví 1 Sílu na konci každého vítězného souboje.',
+  },
+  {
+    id: 'skill_merchant',
+    name: 'Vyjednávání a obchod',
+    category: 'survival',
+    costExp: 2,
+    description: 'Smlouvání s kupci ve městech.',
+    effect: 'Všechny předměty na tržištích jsou o 1 Zlaťák levnější.',
   },
 ]
 
+// ==========================================
+// --- KOUZLA PRO VÝCVIK (SPELLS) ---
+// ==========================================
 export const AVAILABLE_SPELLS: Spell[] = [
   {
     id: 'spell_fireball',
     name: 'Ohnivá koule',
     willCost: 2,
     combatBonus: 3,
-    description: 'Vrhne plamennou kouli, která udělí +3 k útoku.',
+    description: 'Vrhne spalující plamennou kouli na nepřítele.',
     effect: '+3 k Útoku v jednom kole souboje.',
+  },
+  {
+    id: 'spell_lightning',
+    name: 'Bleskový výboj',
+    willCost: 3,
+    combatBonus: 5,
+    description: 'Vyvolá blesk z čistého nebe zasahující cíl.',
+    effect: '+5 k Útoku v jednom kole souboje.',
   },
   {
     id: 'spell_shield_of_light',
     name: 'Světelný štít',
     willCost: 1,
     combatBonus: 0,
-    description: 'Absorbuje 2 zranění v probíhajícím kole.',
+    description: 'Absorbuje 2 body zranění v probíhajícím kole.',
     effect: 'Snižuje utrpěné zranění o 2.',
   },
   {
@@ -341,7 +672,14 @@ export const AVAILABLE_SPELLS: Spell[] = [
     name: 'Mentální úder',
     willCost: 2,
     combatBonus: 3,
-    description: 'Zasáhne vědomí nepřítele silou myšlenky.',
+    description: 'Zasáhne vědomí nepřítele drtivou myšlenkovou vlnou.',
     effect: '+3 k Mentálnímu útoku.',
+  },
+  {
+    id: 'spell_heal',
+    name: 'Léčivé světlo',
+    willCost: 2,
+    description: 'Mystická záře okamžitě zacelí hluboké rány.',
+    effect: 'Okamžitě vyléčí 3 body Síly.',
   },
 ]

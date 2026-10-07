@@ -76,7 +76,7 @@ function publicRoom(room, v, me, now) {
     const seat = room.seats[id];
     seats[id] = seat ? { name: seat.name, heroClassId: seat.heroClassId, online: now - seat.seenAt < ONLINE_MS } : null;
   }
-  return { ok: true, code: room.code, me, v, serverTime: now, seats, state: room.state };
+  return { ok: true, code: room.code, me, v, serverTime: now, seats, state: room.state, started: room.started ?? false };
 }
 
 function seatOf(room, token) {
@@ -175,7 +175,22 @@ export async function handle(body) {
     return publicRoom(room, v, me, now);
   }
 
-  // 4. Aktualizace herního stavu po provedení tahu
+  // 4. Spuštění hry z lobby
+  if (action === 'start') {
+    const { room, v, now, result: me } = await withRoom(code, (room, now) => {
+      const me = seatOf(room, body.token);
+      if (!me) throw new HttpError(403, 'Neplatný token pro tuto místnost.');
+      room.seats[me].seenAt = now;
+      room.started = true;
+      if (body.state) room.state = body.state;
+      room.updatedAt = now;
+      return me;
+    });
+
+    return publicRoom(room, v, me, now);
+  }
+
+  // 5. Aktualizace herního stavu po provedení tahu
   if (action === 'update') {
     if (!body.state) throw new HttpError(400, 'Chybí herní stav (state).');
 

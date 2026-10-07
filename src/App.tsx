@@ -4,10 +4,11 @@ import { Board } from './components/Board'
 import { CardModal } from './components/CardModal'
 import { CombatModal } from './components/CombatModal'
 import { DiceRoller } from './components/DiceRoller'
-import { MultiplayerModal } from './components/MultiplayerModal'
+import { LobbyScreen } from './components/LobbyScreen'
 import { PlayerSheet } from './components/PlayerSheet'
 import { ShopModal } from './components/ShopModal'
 import { BOARD_TILES } from './data/board'
+import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
 import {
   createInitialGame,
@@ -19,6 +20,7 @@ import {
   createOnlineRoom,
   joinOnlineRoom,
   RoomSeat,
+  startOnlineRoomGame,
   syncOnlineRoom,
   updateOnlineRoomState,
 } from './engine/multiplayer'
@@ -33,6 +35,7 @@ import {
 } from './engine/types'
 
 export const App: React.FC = () => {
+  const [appScreen, setAppScreen] = useState<'LOBBY' | 'GAME'>('LOBBY')
   const [game, setGame] = useState<GameState>(() => createInitialGame())
   const [selectedTile, setSelectedTile] = useState<BoardTile>(BOARD_TILES[0])
   const [validMoves, setValidMoves] = useState<number[]>([])
@@ -49,23 +52,23 @@ export const App: React.FC = () => {
   })
 
   // Online Multiplayer State
-  const [isMultiplayerModalOpen, setIsMultiplayerModalOpen] = useState(false)
   const [roomCode, setRoomCode] = useState<string | null>(null)
   const [myToken, setMyToken] = useState<string | null>(null)
   const [mySeat, setMySeat] = useState<'p1' | 'p2' | null>(null)
   const [roomSeats, setRoomSeats] = useState<{ p1: RoomSeat | null; p2: RoomSeat | null } | null>(null)
+  const [urlJoinCode, setUrlJoinCode] = useState<string | null>(null)
   const stateVersionRef = useRef(1)
 
-  // Check URL query parameters for ?room=123456
+  // Detect ?room=123456 in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlRoom = params.get('room')
     if (urlRoom && urlRoom.length === 6) {
-      setIsMultiplayerModalOpen(true)
+      setUrlJoinCode(urlRoom)
     }
   }, [])
 
-  // Auto-sync poll when playing online
+  // Auto-sync polling when connected to an online room
   useEffect(() => {
     if (!roomCode || !myToken) return
 
@@ -74,6 +77,12 @@ export const App: React.FC = () => {
         const res = await syncOnlineRoom(roomCode, myToken)
         if (res.ok) {
           if (res.seats) setRoomSeats(res.seats)
+
+          // If Host started the game, transition to GAME screen automatically
+          if (res.started && appScreen === 'LOBBY') {
+            setAppScreen('GAME')
+          }
+
           if (res.state && res.v && res.v > stateVersionRef.current) {
             stateVersionRef.current = res.v
             setGame(res.state)
@@ -85,14 +94,16 @@ export const App: React.FC = () => {
     }, 1500)
 
     return () => clearInterval(interval)
-  }, [roomCode, myToken])
+  }, [roomCode, myToken, appScreen])
 
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
 
-  // Is it currently this client's turn?
   const isOnline = Boolean(roomCode && mySeat)
-  const isMyTurn = !isOnline || (mySeat === 'p1' && game.activePlayerIndex === 0) || (mySeat === 'p2' && game.activePlayerIndex === 1)
+  const isMyTurn =
+    !isOnline ||
+    (mySeat === 'p1' && game.activePlayerIndex === 0) ||
+    (mySeat === 'p2' && game.activePlayerIndex === 1)
 
   // Broadcast state changes in online room
   const pushStateUpdate = async (nextState: GameState) => {
@@ -109,12 +120,29 @@ export const App: React.FC = () => {
     }
   }
 
-  // Create room
-  const handleCreateRoom = async (name: string, heroClassId: string): Promise<string | null> => {
+  // Lobby Handlers
+  const handleStartHotseat = (p1HeroId: string, p2HeroId: string) => {
+    const p1Hero = HERO_CLASSES.find((h) => h.id === p1HeroId) || HERO_CLASSES[0]
+    const p2Hero = HERO_CLASSES.find((h) => h.id === p2HeroId) || HERO_CLASSES[1]
+
+    const initial = createInitialGame([
+      { name: `Hráč 1 (${p1Hero.name})`, heroClassId: p1HeroId },
+      { name: `Hráč 2 (${p2Hero.name})`, heroClassId: p2HeroId },
+    ])
+
+    setGame(initial)
+    setRoomCode(null)
+    setMySeat(null)
+    setMyToken(null)
+    setAppScreen('GAME')
+  }
+
+  const handleCreateOnlineRoom = async (name: string, heroClassId: string): Promise<string | null> => {
     const initial = createInitialGame([
       { name, heroClassId },
-      { name: 'Hráč 2', heroClassId: 'mage' },
+      { name: 'Čeká se na Hráče 2...', heroClassId: 'mage' },
     ])
+
     const res = await createOnlineRoom(name, heroClassId, initial)
     if (res.ok && res.code && res.token) {
       setRoomCode(res.code)
@@ -128,8 +156,7 @@ export const App: React.FC = () => {
     return null
   }
 
-  // Join room
-  const handleJoinRoom = async (code: string, name: string, heroClassId: string): Promise<boolean> => {
+  const handleJoinOnlineRoom = async (code: string, name: string, heroClassId: string): Promise<boolean> => {
     const res = await joinOnlineRoom(code, name, heroClassId)
     if (res.ok && res.token) {
       setRoomCode(code)
@@ -145,12 +172,20 @@ export const App: React.FC = () => {
     return false
   }
 
+  const handleStartOnlineGame = async () => {
+    if (!roomCode || !myToken) return
+    const res = await startOnlineRoomGame(roomCode, myToken, game)
+    if (res.ok) {
+      setAppScreen('GAME')
+    }
+  }
+
   const handleLeaveRoom = () => {
     setRoomCode(null)
     setMyToken(null)
     setMySeat(null)
     setRoomSeats(null)
-    setIsMultiplayerModalOpen(false)
+    setAppScreen('LOBBY')
   }
 
   // Dice roll for movement
@@ -174,7 +209,7 @@ export const App: React.FC = () => {
     pushStateUpdate(nextState)
   }
 
-  // Player clicked a valid tile to move
+  // Move to tile
   const handleTileClick = (targetTileId: number) => {
     if (!isMyTurn || !validMoves.includes(targetTileId)) return
 
@@ -200,7 +235,7 @@ export const App: React.FC = () => {
     pushStateUpdate(nextState)
   }
 
-  // Draw adventure card for terrain
+  // Draw adventure card
   const handleDrawCard = () => {
     if (!isMyTurn) return
 
@@ -214,7 +249,7 @@ export const App: React.FC = () => {
     setDrawnCard(card)
   }
 
-  // Combat engagement
+  // Engage combat
   const handleEngageCombat = () => {
     if (!drawnCard || !drawnCard.monster || !isMyTurn) return
     const combat = startCombatWithMonster(drawnCard.monster)
@@ -222,7 +257,7 @@ export const App: React.FC = () => {
     setDrawnCard(null)
   }
 
-  // Enter Astral Sphere
+  // Enter astral sphere
   const handleEnterSphere = (sphereId: SphereElement) => {
     if (!isMyTurn) return
     const sphere = ASTRAL_SPHERES.find((s) => s.id === sphereId)
@@ -408,6 +443,23 @@ export const App: React.FC = () => {
     pushStateUpdate(nextState)
   }
 
+  // If user is on Lobby Screen, render LobbyScreen
+  if (appScreen === 'LOBBY') {
+    return (
+      <LobbyScreen
+        onStartHotseat={handleStartHotseat}
+        onCreateOnlineRoom={handleCreateOnlineRoom}
+        onJoinOnlineRoom={handleJoinOnlineRoom}
+        onStartOnlineGame={handleStartOnlineGame}
+        onLeaveRoom={handleLeaveRoom}
+        roomCode={roomCode}
+        mySeat={mySeat}
+        seats={roomSeats}
+        initialJoinCode={urlJoinCode}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col justify-between selection:bg-amber-500 selection:text-stone-950 pb-8">
       {/* Top Header Navbar */}
@@ -419,24 +471,19 @@ export const App: React.FC = () => {
               Proroctví
             </h1>
             <p className="text-[11px] text-stone-400 m-0">
-              Desková hra • Kolo {game.turnNumber} • {isOnline ? `Místnost: ${roomCode}` : 'Lokální hra'}
+              Kolo {game.turnNumber} • {isOnline ? `Místnost: ${roomCode}` : 'Lokální hra'}
             </p>
           </div>
         </div>
 
         {/* Turn indicator & Quick action buttons */}
         <div className="flex items-center gap-3">
-          {/* Online Multiplayer Lobby Button */}
+          {/* Lobby button */}
           <button
-            onClick={() => setIsMultiplayerModalOpen(true)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
-              isOnline
-                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                : 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-stone-300'
-            }`}
+            onClick={() => setAppScreen('LOBBY')}
+            className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs uppercase rounded-xl border border-stone-700 cursor-pointer transition-all"
           >
-            <span>{isOnline ? '🟢' : '🌐'}</span>
-            <span>{isOnline ? `Online (${roomCode})` : 'Hrát Online'}</span>
+            🏛️ Lobby
           </button>
 
           {/* Turn indicator */}
@@ -586,17 +633,6 @@ export const App: React.FC = () => {
       </main>
 
       {/* Modals */}
-      <MultiplayerModal
-        isOpen={isMultiplayerModalOpen}
-        onClose={() => setIsMultiplayerModalOpen(false)}
-        onCreateRoom={handleCreateRoom}
-        onJoinRoom={handleJoinRoom}
-        roomCode={roomCode}
-        mySeat={mySeat}
-        seats={roomSeats}
-        onLeaveRoom={handleLeaveRoom}
-      />
-
       {drawnCard && (
         <CardModal
           card={drawnCard}

@@ -48,4 +48,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Příprava deploy.ps1 a nasazení buildu do c:\xampp\htdocs\7ax-fun\proroctvi (7ax.fun) · hotovo
 2026-10-07 · Antigravity · Nasazení a ověření funkčnosti na https://7ax.fun/proroctvi/ · hotovo
 2026-10-07 · Antigravity · Implementace online multiplayeru pro 2 hráče (kódy místností, Upstash Redis API, synchronizace tahů) · hotovo
+2026-10-07 · Antigravity · Vytvoření samostatné Lobby obrazovky (online čekárna, pozvánky) a rozšíření na 10 hrdinů a plné balíčky karet · hotovo
 
