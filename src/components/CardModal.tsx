@@ -101,11 +101,23 @@ export const CardModal: React.FC<CardModalProps> = ({
                       ⚠️ {card.monster.specialAbility}
                     </div>
                   )}
+
+                  {/* Monster Bounty Rewards */}
+                  <div className="mt-2.5 pt-2 border-t border-stone-800 flex items-center justify-between text-xs font-bold">
+                    <span className="text-stone-400">Kořist za zabití:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400">🪙 +{card.monster.rewardGold} Zl.</span>
+                      <span className="text-emerald-400">⭐ +{card.monster.rewardExp} Exp</span>
+                    </div>
+                  </div>
+                  <div className="mt-1 text-[10px] text-emerald-400/90 font-mono text-center">
+                    ⚡ Stačí 1 úspěšný zásah k poražení netvora!
+                  </div>
                 </div>
               )}
 
               {/* Treasure Rewards */}
-              {(card.rewardGold || card.rewardExp) && (
+              {isTreasure && (card.rewardGold || card.rewardExp) && (
                 <div className="mt-4 p-3 bg-stone-950/80 rounded-xl border border-amber-900/50 flex items-center justify-around text-xs">
                   {card.rewardGold && (
                     <div className="text-amber-400 font-bold">

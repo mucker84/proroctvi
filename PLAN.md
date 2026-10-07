@@ -63,4 +63,5 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Codex · Mobilní herní rozhraní pro dva hráče, vodorovný plán, tahové akce, deníky, záznam, úprava lobby a dialogů, podpora dalších ilustrací lokací · hotovo
 2026-10-07 · Antigravity · Uložení kompletní projektové dokumentace (README.md, ARCHITECTURE.md, plán nasazení, registrace v CML) · hotovo
 2026-10-07 · Antigravity · Sjednocení PC a mobilní verze do moderního plynulého zážitku (desktop widescreen layout, plynulá cesta, dock a akční centrum) · hotovo
+2026-10-07 · Antigravity · Autentická pravidla deskovky pro souboje (1 zásah zabíjí netvora, úprk během boje, bleskový souboj, mentální vs fyzické zranění, obrození a odměny) · hotovo
 

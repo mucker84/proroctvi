@@ -363,6 +363,8 @@ export const App: React.FC = () => {
       currentPlayer.currentStrength = currentPlayer.maxStrength
       currentPlayer.currentWill = currentPlayer.maxWill
       currentPlayer.currentTileId = currentPlayer.heroClass.startTileId
+      const lostGold = Math.floor(currentPlayer.gold / 2)
+      currentPlayer.gold = Math.max(0, currentPlayer.gold - lostGold)
     }
 
     updatedPlayers[game.activePlayerIndex] = currentPlayer
@@ -380,11 +382,29 @@ export const App: React.FC = () => {
       gameLog: [
         playerWon
           ? `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
-          : `${currentPlayer.name} padl v boji a obrodil se ve městě.`,
+          : `${currentPlayer.name} padl v boji. Obrodil se ve městě (-50 % zlaťáků za vzkříšení).`,
         ...game.gameLog.slice(0, 15),
       ],
     }
 
+    setActiveCombat(null)
+    setHasCompletedTileAction(true)
+    pushStateUpdate(nextState)
+  }
+
+  // Handle fleeing during combat
+  const handleFleeCombat = () => {
+    if (!activeCombat) return
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      gameLog: [
+        `${currentPlayer.name} včas uprchl ze souboje s ${activeCombat.enemy.name} a zachránil si život.`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
     setActiveCombat(null)
     setHasCompletedTileAction(true)
     pushStateUpdate(nextState)
@@ -582,6 +602,7 @@ export const App: React.FC = () => {
           player={activePlayer}
           combat={activeCombat}
           onCombatEnd={handleCombatEnd}
+          onFleeCombat={handleFleeCombat}
           onUpdatePlayerStats={(str, will) => {
             const updatedPlayers = [...game.players]
             updatedPlayers[game.activePlayerIndex] = {
