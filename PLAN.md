@@ -41,6 +41,15 @@ Určeno pro nasazení na Vercel (7ax.fun).
 
 ---
 
+## Mobilní UX a grafika
+
+- Na telefonu je herní tah hlavní obrazovkou: stav obou hráčů, aktuální lokace, volba směru a hod, následně akce na poli. Mapa je vodorovná prohlížecí cesta; výběr polí nemění pohyb.
+- Spodní navigace zpřístupňuje plán, deníky hrdinů a záznam hry. Online soupeř vidí průběh tahu, ale nemá aktivní akce. Lokální hra střídá hráče na stejném zařízení.
+- Nové ilustrace lokací se přidávají přes `BoardTile.image`; bez obrázku se použije mapa království. Doporučený výřez lokace je na šířku alespoň 3:2 se čitelným středem a volným spodním okrajem pro text. Portréty hrdinů mají fungovat i ve čtvercovém výřezu; názvy a stav jsou vždy text, nikoli součást obrázku.
+- Karty, souboje a obchod se otevírají nad herní obrazovkou a na menší výšce se posouvají uvnitř dialogu.
+
+---
+
 ## Denik
 2026-10-07 · Antigravity · Inicializace projektu, Vite + TS + Tailwind, zprovoznění struktury a plánu hry · rozpracovano
 2026-10-07 · Antigravity · Implementace hracího plánu (32 polí), 5 astrálních sfér, animovaných kostek, 3D karet, soubojového systému a nákupů · hotovo
@@ -51,4 +60,6 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Vytvoření samostatné Lobby obrazovky (online čekárna, pozvánky) a rozšíření na 10 hrdinů a plné balíčky karet · hotovo
 2026-10-07 · Antigravity · Generování dark fantasy ilustrací všech 10 hrdinů, strážců a mapy království, integrace portrétů do UI, desky a soubojů · hotovo
 2026-10-07 · Antigravity · Intuitivní ovládání: automatický posun po hodu kostkami, TurnActionPanel s okamžitou nabídkou akcí na poli, volba směru, odpočinek a plynulý průběh tahu · hotovo
+2026-10-07 · Codex · Mobilní herní rozhraní pro dva hráče, vodorovný plán, tahové akce, deníky, záznam, úprava lobby a dialogů, podpora dalších ilustrací lokací · hotovo
+2026-10-07 · Antigravity · Uložení kompletní projektové dokumentace (README.md, ARCHITECTURE.md, plán nasazení, registrace v CML) · hotovo
 
