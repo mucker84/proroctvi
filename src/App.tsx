@@ -1,13 +1,13 @@
 import confetti from 'canvas-confetti'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Board } from './components/Board'
 import { CardModal } from './components/CardModal'
 import { CombatModal } from './components/CombatModal'
 import { DiceRoller } from './components/DiceRoller'
+import { MultiplayerModal } from './components/MultiplayerModal'
 import { PlayerSheet } from './components/PlayerSheet'
 import { ShopModal } from './components/ShopModal'
 import { BOARD_TILES } from './data/board'
-import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
 import {
   createInitialGame,
@@ -15,6 +15,13 @@ import {
   getPossibleMoves,
   startCombatWithMonster,
 } from './engine/gameEngine'
+import {
+  createOnlineRoom,
+  joinOnlineRoom,
+  RoomSeat,
+  syncOnlineRoom,
+  updateOnlineRoomState,
+} from './engine/multiplayer'
 import {
   AdventureCard,
   BoardTile,
@@ -41,58 +48,163 @@ export const App: React.FC = () => {
     magic: null,
   })
 
+  // Online Multiplayer State
+  const [isMultiplayerModalOpen, setIsMultiplayerModalOpen] = useState(false)
+  const [roomCode, setRoomCode] = useState<string | null>(null)
+  const [myToken, setMyToken] = useState<string | null>(null)
+  const [mySeat, setMySeat] = useState<'p1' | 'p2' | null>(null)
+  const [roomSeats, setRoomSeats] = useState<{ p1: RoomSeat | null; p2: RoomSeat | null } | null>(null)
+  const stateVersionRef = useRef(1)
+
+  // Check URL query parameters for ?room=123456
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlRoom = params.get('room')
+    if (urlRoom && urlRoom.length === 6) {
+      setIsMultiplayerModalOpen(true)
+    }
+  }, [])
+
+  // Auto-sync poll when playing online
+  useEffect(() => {
+    if (!roomCode || !myToken) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await syncOnlineRoom(roomCode, myToken)
+        if (res.ok) {
+          if (res.seats) setRoomSeats(res.seats)
+          if (res.state && res.v && res.v > stateVersionRef.current) {
+            stateVersionRef.current = res.v
+            setGame(res.state)
+          }
+        }
+      } catch (err) {
+        console.error('Chyba synchronizace:', err)
+      }
+    }, 1500)
+
+    return () => clearInterval(interval)
+  }, [roomCode, myToken])
+
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
 
+  // Is it currently this client's turn?
+  const isOnline = Boolean(roomCode && mySeat)
+  const isMyTurn = !isOnline || (mySeat === 'p1' && game.activePlayerIndex === 0) || (mySeat === 'p2' && game.activePlayerIndex === 1)
+
+  // Broadcast state changes in online room
+  const pushStateUpdate = async (nextState: GameState) => {
+    setGame(nextState)
+    if (roomCode && myToken) {
+      try {
+        const res = await updateOnlineRoomState(roomCode, myToken, nextState)
+        if (res.ok && res.v) {
+          stateVersionRef.current = res.v
+        }
+      } catch (err) {
+        console.error('Chyba odeslání stavu:', err)
+      }
+    }
+  }
+
+  // Create room
+  const handleCreateRoom = async (name: string, heroClassId: string): Promise<string | null> => {
+    const initial = createInitialGame([
+      { name, heroClassId },
+      { name: 'Hráč 2', heroClassId: 'mage' },
+    ])
+    const res = await createOnlineRoom(name, heroClassId, initial)
+    if (res.ok && res.code && res.token) {
+      setRoomCode(res.code)
+      setMyToken(res.token)
+      setMySeat('p1')
+      setRoomSeats(res.seats || null)
+      setGame(initial)
+      stateVersionRef.current = res.v || 1
+      return res.code
+    }
+    return null
+  }
+
+  // Join room
+  const handleJoinRoom = async (code: string, name: string, heroClassId: string): Promise<boolean> => {
+    const res = await joinOnlineRoom(code, name, heroClassId)
+    if (res.ok && res.token) {
+      setRoomCode(code)
+      setMyToken(res.token)
+      setMySeat('p2')
+      setRoomSeats(res.seats || null)
+      if (res.state) {
+        setGame(res.state)
+        stateVersionRef.current = res.v || 1
+      }
+      return true
+    }
+    return false
+  }
+
+  const handleLeaveRoom = () => {
+    setRoomCode(null)
+    setMyToken(null)
+    setMySeat(null)
+    setRoomSeats(null)
+    setIsMultiplayerModalOpen(false)
+  }
+
   // Dice roll for movement
   const handleMoveDiceRoll = (dice: [number, number]) => {
+    if (!isMyTurn) return
+
     const totalSteps = dice[0] + dice[1]
     const moves = getPossibleMoves(activePlayer.currentTileId, totalSteps)
     setValidMoves(moves)
     setHasRolledForMove(true)
 
-    setGame((prev) => ({
-      ...prev,
+    const nextState: GameState = {
+      ...game,
       diceValues: dice,
       phase: 'MOVEMENT',
       gameLog: [
         `${activePlayer.name} hodil ${dice[0]} + ${dice[1]} = ${totalSteps}. Vyber cílové pole na plánu.`,
-        ...prev.gameLog.slice(0, 15),
+        ...game.gameLog.slice(0, 15),
       ],
-    }))
+    }
+    pushStateUpdate(nextState)
   }
 
   // Player clicked a valid tile to move
   const handleTileClick = (targetTileId: number) => {
-    if (!validMoves.includes(targetTileId)) return
+    if (!isMyTurn || !validMoves.includes(targetTileId)) return
 
     const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
+    const updatedPlayers = [...game.players]
+    updatedPlayers[game.activePlayerIndex] = {
+      ...updatedPlayers[game.activePlayerIndex],
+      currentTileId: targetTileId,
+    }
 
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      updatedPlayers[prev.activePlayerIndex] = {
-        ...updatedPlayers[prev.activePlayerIndex],
-        currentTileId: targetTileId,
-      }
-      return {
-        ...prev,
-        players: updatedPlayers,
-        phase: 'TILE_ACTION',
-        gameLog: [
-          `${activePlayer.name} se přesunul na pole #${targetTileId} (${targetTile.name}).`,
-          ...prev.gameLog.slice(0, 15),
-        ],
-      }
-    })
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      phase: 'TILE_ACTION',
+      gameLog: [
+        `${activePlayer.name} se přesunul na pole #${targetTileId} (${targetTile.name}).`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
 
     setValidMoves([])
     setSelectedTile(targetTile)
+    pushStateUpdate(nextState)
   }
 
   // Draw adventure card for terrain
   const handleDrawCard = () => {
+    if (!isMyTurn) return
+
     const terrain = currentTile.terrain
-    // If city or special, use forest or default
     const cardTerrain =
       terrain === 'forest' || terrain === 'mountain' || terrain === 'plains' || terrain === 'water'
         ? terrain
@@ -104,7 +216,7 @@ export const App: React.FC = () => {
 
   // Combat engagement
   const handleEngageCombat = () => {
-    if (!drawnCard || !drawnCard.monster) return
+    if (!drawnCard || !drawnCard.monster || !isMyTurn) return
     const combat = startCombatWithMonster(drawnCard.monster)
     setActiveCombat(combat)
     setDrawnCard(null)
@@ -112,6 +224,7 @@ export const App: React.FC = () => {
 
   // Enter Astral Sphere
   const handleEnterSphere = (sphereId: SphereElement) => {
+    if (!isMyTurn) return
     const sphere = ASTRAL_SPHERES.find((s) => s.id === sphereId)
     if (!sphere) return
 
@@ -128,185 +241,171 @@ export const App: React.FC = () => {
   const handleCombatEnd = (playerWon: boolean) => {
     if (!activeCombat) return
 
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
 
-      if (playerWon) {
-        currentPlayer.gold += activeCombat.enemy.rewardGold
-        currentPlayer.experience += activeCombat.enemy.rewardExp
+    if (playerWon) {
+      currentPlayer.gold += activeCombat.enemy.rewardGold
+      currentPlayer.experience += activeCombat.enemy.rewardExp
 
-        // If sphere guardian was defeated, claim artifact!
-        if (activeCombat.isSphereGuardian) {
-          const sphere = ASTRAL_SPHERES.find((s) => s.guardian.id === activeCombat.enemy.id)
-          if (sphere && !currentPlayer.artifacts.some((a) => a.id === sphere.artifact.id)) {
-            currentPlayer.artifacts.push(sphere.artifact)
-            setClaimedSpheres((c) => ({ ...c, [sphere.id]: currentPlayer.name }))
-            confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
-          }
+      if (activeCombat.isSphereGuardian) {
+        const sphere = ASTRAL_SPHERES.find((s) => s.guardian.id === activeCombat.enemy.id)
+        if (sphere && !currentPlayer.artifacts.some((a) => a.id === sphere.artifact.id)) {
+          currentPlayer.artifacts.push(sphere.artifact)
+          setClaimedSpheres((c) => ({ ...c, [sphere.id]: currentPlayer.name }))
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
         }
-      } else {
-        // Player defeated: respawn at start city with recovered health
-        currentPlayer.currentStrength = currentPlayer.maxStrength
-        currentPlayer.currentWill = currentPlayer.maxWill
-        currentPlayer.currentTileId = currentPlayer.heroClass.startTileId
       }
+    } else {
+      currentPlayer.currentStrength = currentPlayer.maxStrength
+      currentPlayer.currentWill = currentPlayer.maxWill
+      currentPlayer.currentTileId = currentPlayer.heroClass.startTileId
+    }
 
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
 
-      // Check win condition (4 artifacts)
-      let winner = prev.winner
-      if (currentPlayer.artifacts.length >= 4) {
-        winner = currentPlayer
-        confetti({ particleCount: 200, spread: 100 })
-      }
+    let winner = game.winner
+    if (currentPlayer.artifacts.length >= 4) {
+      winner = currentPlayer
+      confetti({ particleCount: 200, spread: 100 })
+    }
 
-      return {
-        ...prev,
-        players: updatedPlayers,
-        winner,
-        gameLog: [
-          playerWon
-            ? `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
-            : `${currentPlayer.name} padl v boji a obrodil se ve městě.`,
-          ...prev.gameLog.slice(0, 15),
-        ],
-      }
-    })
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      winner,
+      gameLog: [
+        playerWon
+          ? `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
+          : `${currentPlayer.name} padl v boji a obrodil se ve městě.`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
 
     setActiveCombat(null)
+    pushStateUpdate(nextState)
   }
 
   // Claim treasure card
   const handleClaimTreasure = () => {
-    if (!drawnCard) return
+    if (!drawnCard || !isMyTurn) return
 
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
 
-      if (drawnCard.rewardGold) currentPlayer.gold += drawnCard.rewardGold
-      if (drawnCard.rewardExp) currentPlayer.experience += drawnCard.rewardExp
+    if (drawnCard.rewardGold) currentPlayer.gold += drawnCard.rewardGold
+    if (drawnCard.rewardExp) currentPlayer.experience += drawnCard.rewardExp
 
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return {
-        ...prev,
-        players: updatedPlayers,
-        gameLog: [
-          `${currentPlayer.name} získal poklad: +${drawnCard.rewardGold || 0} zlaťáků, +${
-            drawnCard.rewardExp || 0
-          } exp.`,
-          ...prev.gameLog.slice(0, 15),
-        ],
-      }
-    })
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      gameLog: [
+        `${currentPlayer.name} získal poklad: +${drawnCard.rewardGold || 0} zlaťáků, +${
+          drawnCard.rewardExp || 0
+        } exp.`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
 
     setDrawnCard(null)
+    pushStateUpdate(nextState)
   }
 
   // Item & Training Shop actions
   const handleBuyItem = (item: Item) => {
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
-      if (currentPlayer.gold >= item.price) {
-        currentPlayer.gold -= item.price
-        currentPlayer.inventory.push(item)
-      }
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return { ...prev, players: updatedPlayers }
-    })
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (currentPlayer.gold >= item.price) {
+      currentPlayer.gold -= item.price
+      currentPlayer.inventory.push(item)
+    }
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
   const handleLearnSkill = (skill: Skill) => {
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
-      if (currentPlayer.experience >= skill.costExp) {
-        currentPlayer.experience -= skill.costExp
-        currentPlayer.skills.push(skill)
-      }
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return { ...prev, players: updatedPlayers }
-    })
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (currentPlayer.experience >= skill.costExp) {
+      currentPlayer.experience -= skill.costExp
+      currentPlayer.skills.push(skill)
+    }
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
   const handleTrainStat = (stat: 'strength' | 'will') => {
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
-      if (currentPlayer.experience >= 4) {
-        currentPlayer.experience -= 4
-        if (stat === 'strength') {
-          currentPlayer.maxStrength += 1
-          currentPlayer.currentStrength += 1
-        } else {
-          currentPlayer.maxWill += 1
-          currentPlayer.currentWill += 1
-        }
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (currentPlayer.experience >= 4) {
+      currentPlayer.experience -= 4
+      if (stat === 'strength') {
+        currentPlayer.maxStrength += 1
+        currentPlayer.currentStrength += 1
+      } else {
+        currentPlayer.maxWill += 1
+        currentPlayer.currentWill += 1
       }
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return { ...prev, players: updatedPlayers }
-    })
+    }
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
   const handleHeal = () => {
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
-      if (currentPlayer.gold >= 2) {
-        currentPlayer.gold -= 2
-        currentPlayer.currentStrength = currentPlayer.maxStrength
-        currentPlayer.currentWill = currentPlayer.maxWill
-      }
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return { ...prev, players: updatedPlayers }
-    })
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (currentPlayer.gold >= 2) {
+      currentPlayer.gold -= 2
+      currentPlayer.currentStrength = currentPlayer.maxStrength
+      currentPlayer.currentWill = currentPlayer.maxWill
+    }
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
   const handleUseItem = (item: Item) => {
-    setGame((prev) => {
-      const updatedPlayers = [...prev.players]
-      const currentPlayer = { ...updatedPlayers[prev.activePlayerIndex] }
-      if (item.effect === 'heal_3_str') {
-        currentPlayer.currentStrength = Math.min(
-          currentPlayer.maxStrength,
-          currentPlayer.currentStrength + 3
-        )
-      } else if (item.effect === 'heal_3_will') {
-        currentPlayer.currentWill = Math.min(
-          currentPlayer.maxWill,
-          currentPlayer.currentWill + 3
-        )
-      }
-      // Remove used potion
-      currentPlayer.inventory = currentPlayer.inventory.filter((i) => i.id !== item.id)
-      updatedPlayers[prev.activePlayerIndex] = currentPlayer
-      return { ...prev, players: updatedPlayers }
-    })
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (item.effect === 'heal_3_str') {
+      currentPlayer.currentStrength = Math.min(
+        currentPlayer.maxStrength,
+        currentPlayer.currentStrength + 3
+      )
+    } else if (item.effect === 'heal_3_will') {
+      currentPlayer.currentWill = Math.min(
+        currentPlayer.maxWill,
+        currentPlayer.currentWill + 3
+      )
+    }
+    currentPlayer.inventory = currentPlayer.inventory.filter((i) => i.id !== item.id)
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
   // End turn
   const handleEndTurn = () => {
+    if (!isMyTurn) return
+
     setHasRolledForMove(false)
     setValidMoves([])
     setDrawnCard(null)
 
-    setGame((prev) => {
-      const nextPlayerIndex = (prev.activePlayerIndex + 1) % prev.players.length
-      const nextTurnNumber =
-        nextPlayerIndex === 0 ? prev.turnNumber + 1 : prev.turnNumber
-      return {
-        ...prev,
-        activePlayerIndex: nextPlayerIndex,
-        turnNumber: nextTurnNumber,
-        phase: 'START',
-        gameLog: [
-          `Tah ukončen. Nyní hraje ${prev.players[nextPlayerIndex].name}.`,
-          ...prev.gameLog.slice(0, 15),
-        ],
-      }
-    })
+    const nextPlayerIndex = (game.activePlayerIndex + 1) % game.players.length
+    const nextTurnNumber = nextPlayerIndex === 0 ? game.turnNumber + 1 : game.turnNumber
+
+    const nextState: GameState = {
+      ...game,
+      activePlayerIndex: nextPlayerIndex,
+      turnNumber: nextTurnNumber,
+      phase: 'START',
+      gameLog: [
+        `Tah ukončen. Nyní hraje ${game.players[nextPlayerIndex].name}.`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
+
+    pushStateUpdate(nextState)
   }
 
   return (
@@ -320,29 +419,65 @@ export const App: React.FC = () => {
               Proroctví
             </h1>
             <p className="text-[11px] text-stone-400 m-0">
-              Desková hra • Kolo {game.turnNumber} • Vercel Edition
+              Desková hra • Kolo {game.turnNumber} • {isOnline ? `Místnost: ${roomCode}` : 'Lokální hra'}
             </p>
           </div>
         </div>
 
         {/* Turn indicator & Quick action buttons */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Online Multiplayer Lobby Button */}
+          <button
+            onClick={() => setIsMultiplayerModalOpen(true)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+              isOnline
+                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                : 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-stone-300'
+            }`}
+          >
+            <span>{isOnline ? '🟢' : '🌐'}</span>
+            <span>{isOnline ? `Online (${roomCode})` : 'Hrát Online'}</span>
+          </button>
+
+          {/* Turn indicator */}
           <div className="flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800">
-            <span className="text-xs text-stone-400">Hraje:</span>
+            <span className="text-xs text-stone-400">Na tahu:</span>
             <span className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
               <span>{activePlayer.heroClass.avatar}</span>
               <span>{activePlayer.name}</span>
             </span>
+            {isOnline && (
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${
+                  isMyTurn ? 'bg-amber-500 text-stone-950' : 'bg-stone-800 text-stone-400'
+                }`}
+              >
+                {isMyTurn ? 'Jsi na tahu' : 'Soupeř'}
+              </span>
+            )}
           </div>
 
           <button
             onClick={handleEndTurn}
-            className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs uppercase rounded-xl border border-stone-700 cursor-pointer transition-all"
+            disabled={!isMyTurn}
+            className={`px-4 py-2 font-bold text-xs uppercase rounded-xl border transition-all ${
+              isMyTurn
+                ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border-stone-700 cursor-pointer'
+                : 'bg-stone-900 text-stone-600 border-stone-800 cursor-not-allowed'
+            }`}
           >
             Ukončit tah ➔
           </button>
         </div>
       </header>
+
+      {/* Online Status Banner when opponent is playing */}
+      {isOnline && !isMyTurn && (
+        <div className="w-full bg-indigo-950/90 border-b border-indigo-800/80 px-4 py-2 text-center text-xs font-bold text-indigo-200 flex items-center justify-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+          <span>Právě hraje soupeř ({activePlayer.name}). Počkej, až dokončí svůj tah...</span>
+        </div>
+      )}
 
       {/* Main Game Container */}
       <main className="w-full max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
@@ -363,8 +498,14 @@ export const App: React.FC = () => {
             {/* Dice Roller */}
             <DiceRoller
               onRollComplete={handleMoveDiceRoll}
-              disabled={hasRolledForMove}
-              label={hasRolledForMove ? 'Hod vyhodnocen' : 'Hodit na pohyb'}
+              disabled={hasRolledForMove || !isMyTurn}
+              label={
+                !isMyTurn
+                  ? 'Čekám na soupeře'
+                  : hasRolledForMove
+                  ? 'Hod vyhodnocen'
+                  : 'Hodit na pohyb'
+              }
             />
 
             {/* Tile Interaction Buttons */}
@@ -382,7 +523,8 @@ export const App: React.FC = () => {
                   currentTile.terrain === 'camp') && (
                   <button
                     onClick={() => setShowShop(true)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
+                    disabled={!isMyTurn}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
                   >
                     🏪 {currentTile.specialActionTitle || 'Otevřít nabídku'}
                   </button>
@@ -392,7 +534,8 @@ export const App: React.FC = () => {
                 {currentTile.hasAstralGate && (
                   <button
                     onClick={() => handleEnterSphere(currentTile.hasAstralGate!)}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase rounded-xl shadow animate-pulse cursor-pointer transition-all"
+                    disabled={!isMyTurn}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-xs uppercase rounded-xl shadow animate-pulse cursor-pointer transition-all"
                   >
                     🌀 Vstoupit do Sféry
                   </button>
@@ -401,7 +544,8 @@ export const App: React.FC = () => {
                 {/* Draw Card button */}
                 <button
                   onClick={handleDrawCard}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
+                  disabled={!isMyTurn}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-stone-950 font-black text-xs uppercase rounded-xl shadow cursor-pointer transition-all"
                 >
                   🎴 Tahat kartu dobrodružství
                 </button>
@@ -442,6 +586,17 @@ export const App: React.FC = () => {
       </main>
 
       {/* Modals */}
+      <MultiplayerModal
+        isOpen={isMultiplayerModalOpen}
+        onClose={() => setIsMultiplayerModalOpen(false)}
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
+        roomCode={roomCode}
+        mySeat={mySeat}
+        seats={roomSeats}
+        onLeaveRoom={handleLeaveRoom}
+      />
+
       {drawnCard && (
         <CardModal
           card={drawnCard}
@@ -457,15 +612,13 @@ export const App: React.FC = () => {
           combat={activeCombat}
           onCombatEnd={handleCombatEnd}
           onUpdatePlayerStats={(str, will) => {
-            setGame((prev) => {
-              const updatedPlayers = [...prev.players]
-              updatedPlayers[prev.activePlayerIndex] = {
-                ...updatedPlayers[prev.activePlayerIndex],
-                currentStrength: str,
-                currentWill: will,
-              }
-              return { ...prev, players: updatedPlayers }
-            })
+            const updatedPlayers = [...game.players]
+            updatedPlayers[game.activePlayerIndex] = {
+              ...updatedPlayers[game.activePlayerIndex],
+              currentStrength: str,
+              currentWill: will,
+            }
+            pushStateUpdate({ ...game, players: updatedPlayers })
           }}
         />
       )}
