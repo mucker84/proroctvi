@@ -34,6 +34,7 @@ import {
   GameState,
   Item,
   Skill,
+  Spell,
   SphereElement,
 } from './engine/types'
 
@@ -518,6 +519,20 @@ export const App: React.FC = () => {
     pushStateUpdate({ ...game, players: updatedPlayers })
   }
 
+  const handleLearnSpell = (spell: Spell) => {
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    if (
+      currentPlayer.experience >= 3 &&
+      !currentPlayer.spells.some((s) => s.id === spell.id)
+    ) {
+      currentPlayer.experience -= 3
+      currentPlayer.spells.push(spell)
+    }
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    pushStateUpdate({ ...game, players: updatedPlayers })
+  }
+
   const handleTrainStat = (stat: 'strength' | 'will') => {
     const updatedPlayers = [...game.players]
     const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
@@ -923,6 +938,7 @@ export const App: React.FC = () => {
           tileTerrain={currentTile.terrain}
           onBuyItem={handleBuyItem}
           onLearnSkill={handleLearnSkill}
+          onLearnSpell={handleLearnSpell}
           onTrainStat={handleTrainStat}
           onHeal={handleHeal}
           onFinishTurn={() => {

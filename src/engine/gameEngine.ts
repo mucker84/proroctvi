@@ -1,5 +1,5 @@
 import { BOARD_TILES } from '../data/board'
-import { ADVENTURE_CARDS } from '../data/cards'
+import { ADVENTURE_CARDS, AVAILABLE_SPELLS } from '../data/cards'
 import { HERO_CLASSES } from '../data/characters'
 import { ASTRAL_SPHERES } from '../data/spheres'
 import {
@@ -23,6 +23,22 @@ export function createInitialGame(
   const players: Player[] = playerConfigs.map((cfg, index) => {
     const heroClass =
       HERO_CLASSES.find((h) => h.id === cfg.heroClassId) || HERO_CLASSES[0]
+
+    const startingSpells: Spell[] = []
+    if (heroClass.id === 'mage') {
+      const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
+      if (fb) startingSpells.push(fb)
+    } else if (heroClass.id === 'warlock') {
+      const mb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_mind_blast')
+      if (mb) startingSpells.push(mb)
+    } else if (heroClass.id === 'witch') {
+      const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
+      if (fb) startingSpells.push(fb)
+    } else if (heroClass.id === 'druid') {
+      const heal = AVAILABLE_SPELLS.find((s) => s.id === 'spell_heal')
+      if (heal) startingSpells.push(heal)
+    }
+
     return {
       id: `p-${index + 1}`,
       name: cfg.name,
@@ -36,7 +52,7 @@ export function createInitialGame(
       currentTileId: heroClass.startTileId,
       inventory: [],
       skills: [],
-      spells: [],
+      spells: startingSpells,
       artifacts: [],
       isAI: cfg.isAI || false,
     }

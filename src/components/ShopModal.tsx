@@ -1,12 +1,13 @@
 import React from 'react'
-import { AVAILABLE_SKILLS, SHOP_ITEMS } from '../data/cards'
-import { Item, Player, Skill, TerrainType } from '../engine/types'
+import { AVAILABLE_SKILLS, AVAILABLE_SPELLS, SHOP_ITEMS } from '../data/cards'
+import { Item, Player, Skill, Spell, TerrainType } from '../engine/types'
 
 interface ShopModalProps {
   player: Player
   tileTerrain: TerrainType
   onBuyItem: (item: Item) => void
   onLearnSkill: (skill: Skill) => void
+  onLearnSpell?: (spell: Spell) => void
   onTrainStat: (stat: 'strength' | 'will') => void
   onHeal: () => void
   onClose: () => void
@@ -18,6 +19,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   tileTerrain,
   onBuyItem,
   onLearnSkill,
+  onLearnSpell,
   onTrainStat,
   onHeal,
   onClose,
@@ -90,6 +92,29 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <div className="text-[11px] text-stone-400">Trvalé posílení mentální kapacity a many.</div>
                 <div className="text-xs font-bold text-emerald-400 mt-1">Cena: 4 Zkušenosti</div>
               </button>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-stone-800">
+              <h4 className="text-xs font-bold text-blue-300 mb-2">Arkánní kouzla k naučení:</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {AVAILABLE_SPELLS.map((spell) => {
+                  const alreadyLearned = player.spells && player.spells.some((s) => s.id === spell.id)
+                  return (
+                    <button
+                      key={spell.id}
+                      onClick={() => onLearnSpell && onLearnSpell(spell)}
+                      disabled={alreadyLearned || player.experience < 3}
+                      className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg text-left hover:border-blue-500 disabled:opacity-40 cursor-pointer"
+                    >
+                      <div className="font-bold text-xs text-blue-300">✨ {spell.name}</div>
+                      <div className="text-[11px] text-stone-300 mt-0.5">{spell.effect} (Stojí {spell.willCost} 🔮)</div>
+                      <div className="text-xs font-bold text-emerald-400 mt-1">
+                        {alreadyLearned ? '✓ Již znáš' : 'Cena: 3 Zkušenosti'}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         )}

@@ -93,4 +93,5 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Antigravity · Živý stavový řádek (mobilní ticker s poslední akcí ze záznamu pod scoreboardem a živý text v boxu soupeře) · hotovo
 2026-10-08 · Antigravity · Rychlý průvodce hrou v intru a v hlavičce (Civilizace vs Divočina, pravidla tahu a cíl 4 artefaktů) · hotovo
 2026-10-08 · Antigravity · Rozšíření úvodního průvodce o význam karet dobrodružství (zdroj bohatství: netvoři za zlato/expy a poklady) · hotovo
+2026-10-08 · Antigravity · Přidání startovních kouzel pro Kouzelníka (Ohnivá koule), Warlocka a Druida a výuka arkánních kouzel v chrámech · hotovo
 
