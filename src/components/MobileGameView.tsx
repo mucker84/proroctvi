@@ -3,7 +3,7 @@ import { BookOpen, ChevronRight, Compass, ScrollText, Sparkles, Swords, Users } 
 import { BOARD_TILES } from '../data/board'
 import { ASTRAL_SPHERES } from '../data/spheres'
 import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
-import type { BoardTile, GameState, Item, Player, SphereElement } from '../engine/types'
+import type { BoardTile, GameState, Item, SphereElement } from '../engine/types'
 import { DiceRoller } from './DiceRoller'
 import { PlayerSheet } from './PlayerSheet'
 
@@ -45,26 +45,36 @@ export function MobileGameView({
 }: MobileGameViewProps) {
   const [tab, setTab] = useState<MobileTab>('map')
   const [direction, setDirection] = useState<'cw' | 'ccw'>('cw')
-  const [inspectingPlayer, setInspectingPlayer] = useState<Player | null>(null)
+  const [inspectingPlayerId, setInspectingPlayerId] = useState<string | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
   const canActOnTile = isMyTurn && game.phase === 'TILE_ACTION'
   const shopAvailable = ['city', 'training', 'temple', 'camp', 'castle'].includes(currentTile.terrain)
   const ownPlayerIndex = isOnline && mySeat === 'p2' ? 1 : 0
+  const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
+  const inspectingPlayer = game.players.find((player) => player.id === inspectingPlayerId) ?? null
 
-  const physAttack = calculatePlayerAttack(activePlayer, 'physical', 0)
-  const mentalAttack = calculatePlayerAttack(activePlayer, 'mental', 0)
-  const defense = calculatePlayerDefense(activePlayer)
+  const physAttack = calculatePlayerAttack(hudPlayer, 'physical', 0)
+  const mentalAttack = calculatePlayerAttack(hudPlayer, 'mental', 0)
+  const defense = calculatePlayerDefense(hudPlayer)
 
   useEffect(() => {
     if (tab !== 'map') return
-    const tile = trackRef.current?.querySelector<HTMLElement>(`[data-tile-id="${activePlayer.currentTileId}"]`)
-    tile?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    const track = trackRef.current
+    const tile = track?.querySelector<HTMLElement>(`[data-tile-id="${activePlayer.currentTileId}"]`)
+    if (!track || !tile) return
+    const trackBounds = track.getBoundingClientRect()
+    const tileBounds = tile.getBoundingClientRect()
+    track.scrollBy({
+      left: tileBounds.left - trackBounds.left - (trackBounds.width - tileBounds.width) / 2,
+      behavior: 'smooth',
+    })
   }, [activePlayer.currentTileId, tab])
 
   return (
     <div className="mobile-game">
+      <div className="mobile-topbar">
       <header className="mobile-header">
         <div>
           <div className="mobile-brand">✦ PROROCTVÍ</div>
@@ -73,56 +83,73 @@ export function MobileGameView({
         <button type="button" className="mobile-header-button cursor-pointer" onClick={onLobby}>Lobby</button>
       </header>
 
-      {/* Scoreboard with clickable player sheets */}
-      <div className="mobile-scoreboard" aria-label="Stav hráčů">
+      <div className="mobile-scoreboard" aria-label="Zdroje obou hráčů">
         {game.players.map((player, index) => (
           <button
             type="button"
             key={player.id}
-            onClick={() => setInspectingPlayer(player)}
-            className={`mobile-player text-left cursor-pointer transition-all hover:border-amber-400/80 ${index === game.activePlayerIndex ? 'is-active' : ''}`}
-            title="Klikni pro detail hrdiny a inventář"
+            onClick={() => setInspectingPlayerId(player.id)}
+            className={`mobile-player cursor-pointer ${index === game.activePlayerIndex ? 'is-active' : ''}`}
+            aria-label={`${isOnline ? (index === ownPlayerIndex ? 'Ty' : 'Soupeř') : `Hráč ${index + 1}`}, ${player.name}. Síla ${player.currentStrength} z ${player.maxStrength}, vůle ${player.currentWill} z ${player.maxWill}, zlato ${player.gold}, zkušenosti ${player.experience}, artefakty ${player.artifacts.length} ze 4, předměty ${player.inventory.length}. Otevřít deník.`}
           >
-            <div className="mobile-player-portrait">
-              {player.heroClass.image
-                ? <img src={player.heroClass.image} alt="" />
-                : <span>{player.heroClass.avatar}</span>}
-            </div>
-            <div className="mobile-player-info">
-              <span className="mobile-player-label">
-                {isOnline ? (index === ownPlayerIndex ? 'TY' : 'SOUPEŘ') : `HRÁČ ${index + 1}`}
-                {index === game.activePlayerIndex ? ' · NA TAHU' : ''}
+            <span className="mobile-player-identity">
+              <span className="mobile-player-portrait" aria-hidden="true">
+                {player.heroClass.image
+                  ? <img src={player.heroClass.image} alt="" />
+                  : <span>{player.heroClass.avatar}</span>}
               </span>
-              <strong>{player.name}</strong>
-              <div className="mobile-player-pills">
-                <span className="mobile-pill pill-gold" title="Zlaťáky">🪙 {player.gold} zl</span>
-                <span className="mobile-pill pill-exp" title="Zkušenosti">⭐ {player.experience} xp</span>
-                <span className="mobile-pill pill-hp" title="Síla / Životy">❤️ {player.currentStrength}/{player.maxStrength}</span>
-                <span className="mobile-pill pill-will" title="Vůle / Mana">🔮 {player.currentWill}/{player.maxWill}</span>
-                <span className="mobile-pill pill-art" title="Získané artefakty">🏆 {player.artifacts.length}/4</span>
-              </div>
-            </div>
+              <span className="mobile-player-label">{isOnline ? (index === ownPlayerIndex ? 'TY' : 'SOUPĚŘ') : `HRÁČ ${index + 1}`}</span>
+              <span className="mobile-player-name">{player.name}</span>
+              {index === game.activePlayerIndex && <span className="mobile-player-turn">TAH</span>}
+            </span>
+            <span className="mobile-stat stat-strength"><span>SÍLA</span><strong>{player.currentStrength}/{player.maxStrength}</strong></span>
+            <span className="mobile-stat stat-will"><span>VŮLE</span><strong>{player.currentWill}/{player.maxWill}</strong></span>
+            <span className="mobile-stat stat-gold"><span>ZLATO</span><strong>{player.gold}</strong></span>
+            <span className="mobile-stat stat-exp"><span>ZKUŠ.</span><strong>{player.experience}</strong></span>
+            <span className="mobile-stat stat-art"><span>ARTEF.</span><strong>{player.artifacts.length}/4</strong></span>
+            <span className="mobile-stat stat-items"><span>VĚCI</span><strong>{player.inventory.length}</strong></span>
           </button>
         ))}
+      </div>
       </div>
 
       {tab === 'map' ? (
         <main className="mobile-main">
+          {/* Turn status & dice section */}
+          <section className="mobile-turn" aria-live="polite">
+            <div className="mobile-section-label">{isMyTurn ? 'TVŮJ TAH' : 'TAH SOUPEŘE'} <span>{!hasRolledForMove ? '1 / 2 · POHYB' : '2 / 2 · AKCE'}</span></div>
+            {!isMyTurn ? (
+              <div className="mobile-wait"><Swords size={22} /><div><strong>Hraje {activePlayer.name}</strong><p>Jeho tah uvidíš tady živě. Mezitím si můžeš prohlédnout plán a hrdiny.</p></div></div>
+            ) : !hasRolledForMove ? (
+              <div className="mobile-dice"><div><strong>Vydej se na cestu</strong><p>Zvol směr. Po hodu tě hra automaticky přesune o součet obou kostek.</p></div><div className="mobile-direction" role="group" aria-label="Směr pohybu"><button type="button" className={direction === 'cw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('cw')}>↻ Po směru</button><button type="button" className={direction === 'ccw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('ccw')}>↺ Proti směru</button></div><DiceRoller onRollComplete={(dice) => onRollDice(dice, direction)} label="Hodit a jít" /></div>
+            ) : (
+              <div className="mobile-prompt"><strong>Co podnikneš v {currentTile.name}?</strong><p>Hod {lastDiceRoll?.[0]} + {lastDiceRoll?.[1]} = {(lastDiceRoll?.[0] || 0) + (lastDiceRoll?.[1] || 0)}. Vyber akci, nebo předej tah.</p>{!hasCompletedTileAction && <button type="button" className="mobile-switch cursor-pointer" onClick={onSwitchDirection}>↩ Raději jít na pole {alternateTile.id}: {alternateTile.name}</button>}</div>
+            )}
+          </section>
+
+          {/* Tile actions */}
+          {canActOnTile && <section className="mobile-actions" aria-label="Akce na aktuálním poli">
+            <div className="mobile-section-label">AKCE NA POLI</div>
+            {shopAvailable && <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🏪</span><span><strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong><small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small></span><ChevronRight size={18} /></button>}
+            {currentTile.hasAstralGate && <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌀</span><span><strong>Vstoupit do astrální sféry</strong><small>Vyzvat strážce a získat artefakt</small></span><ChevronRight size={18} /></button>}
+            <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🎴</span><span><strong>Tahat kartu dobrodružství</strong><small>Událost, poklad nebo souboj</small></span><ChevronRight size={18} /></button>
+            <button type="button" onClick={onRest} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌿</span><span><strong>Odpočinout si</strong><small>Obnovit 1 Sílu nebo 1 Vůli</small></span><ChevronRight size={18} /></button>
+            <button type="button" onClick={onEndTurn} className="mobile-end-turn cursor-pointer">Ukončit tah a předat hru <ChevronRight size={18} /></button>
+          </section>}
+
           {/* Grand Prophecy Quest Tracker Banner */}
           <section className="mobile-quest-banner" aria-label="Cíl hry: 4 z 5 astrálních artefaktů">
             <div className="mobile-quest-header">
               <div className="flex items-center gap-1.5 font-bold text-purple-200 text-xs">
                 <span>👑</span>
-                <span>CÍL HRY: ZÍSKEJ 4 Z 5 ARTEFAKTŮ ZE SFÉR</span>
+                <span>4 ARTEFAKTY = VÍTĚZSTVÍ</span>
               </div>
-              <span className="text-[10px] font-black bg-purple-500/30 text-purple-200 border border-purple-400/50 px-2 py-0.5 rounded-full">
-                Tvůj postup: {activePlayer.artifacts.length} / 4
-              </span>
             </div>
             <div className="mobile-quest-spheres">
               {ASTRAL_SPHERES.map((sphere) => {
                 const owner = game.players.find((p) => p.artifacts.some((a) => a.id === sphere.artifact.id))
-                const isClaimedByMe = activePlayer.artifacts.some((a) => a.id === sphere.artifact.id)
+                const isClaimedByMe = hudPlayer.artifacts.some((a) => a.id === sphere.artifact.id)
+                const ownerIndex = owner ? game.players.indexOf(owner) : -1
                 const sphereEmoji = sphere.id === 'fire' ? '🔥' : sphere.id === 'ice' ? '❄️' : sphere.id === 'shadow' ? '🌑' : sphere.id === 'storm' ? '⚡' : '🔮'
                 return (
                   <div
@@ -132,46 +159,11 @@ export function MobileGameView({
                   >
                     <span className="text-sm">{sphereEmoji}</span>
                     <span className="text-[9.5px] font-bold text-stone-200">
-                      {isClaimedByMe ? 'Máš!' : owner ? owner.name.slice(0, 6) : sphere.elementName}
+                      {owner ? (isOnline ? (ownerIndex === ownPlayerIndex ? 'Ty' : 'Soupeř') : `Hráč ${ownerIndex + 1}`) : 'Volná'}
                     </span>
                   </div>
                 )
               })}
-            </div>
-          </section>
-
-          {/* Active Hero Resource Bar */}
-          <section className="mobile-resource-bar" aria-label="Suroviny aktivního hrdiny">
-            <div className="mobile-res-chip res-gold" title="Zlaťáky – k nákupu zbraní, zbrojí a léčení ve městech">
-              <span className="res-icon">🪙</span>
-              <div className="res-meta">
-                <strong className="res-val">{activePlayer.gold}</strong>
-                <span className="res-label">Zlaťáků</span>
-              </div>
-            </div>
-
-            <div className="mobile-res-chip res-exp" title="Zkušenosti – k tréninku Síly, Vůle a bojových dovedností">
-              <span className="res-icon">⭐</span>
-              <div className="res-meta">
-                <strong className="res-val">{activePlayer.experience}</strong>
-                <span className="res-label">Zkušeností</span>
-              </div>
-            </div>
-
-            <div className="mobile-res-chip res-str" title="Síla / HP – fyzické zdraví a útočné číslo">
-              <span className="res-icon">❤️</span>
-              <div className="res-meta">
-                <strong className="res-val">{activePlayer.currentStrength}/{activePlayer.maxStrength}</strong>
-                <span className="res-label">Síla / HP</span>
-              </div>
-            </div>
-
-            <div className="mobile-res-chip res-will" title="Vůle / Mana – duševní zdraví a mentální kouzla">
-              <span className="res-icon">🔮</span>
-              <div className="res-meta">
-                <strong className="res-val">{activePlayer.currentWill}/{activePlayer.maxWill}</strong>
-                <span className="res-label">Vůle / Mana</span>
-              </div>
             </div>
           </section>
 
@@ -185,18 +177,6 @@ export function MobileGameView({
                 <p>{currentTile.description}</p>
               </div>
             </div>
-          </section>
-
-          {/* Turn status & dice section */}
-          <section className="mobile-turn" aria-live="polite">
-            <div className="mobile-section-label">{isMyTurn ? 'TVŮJ TAH' : 'TAH SOUPEŘE'} <span>{!hasRolledForMove ? '1 / 2 · POHYB' : '2 / 2 · AKCE'}</span></div>
-            {!isMyTurn ? (
-              <div className="mobile-wait"><Swords size={22} /><div><strong>Hraje {activePlayer.name}</strong><p>Jeho tah uvidíš tady živě. Mezitím si můžeš prohlédnout plán a hrdiny.</p></div></div>
-            ) : !hasRolledForMove ? (
-              <div className="mobile-dice"><div><strong>Vydej se na cestu</strong><p>Zvol směr. Po hodu tě hra automaticky přesune o součet obou kostek.</p></div><div className="mobile-direction" role="group" aria-label="Směr pohybu"><button type="button" className={direction === 'cw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('cw')}>↻ Po směru</button><button type="button" className={direction === 'ccw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('ccw')}>↺ Proti směru</button></div><DiceRoller onRollComplete={(dice) => onRollDice(dice, direction)} label="Hodit a jít" /></div>
-            ) : (
-              <div className="mobile-prompt"><strong>Co podnikneš v {currentTile.name}?</strong><p>Hod {lastDiceRoll?.[0]} + {lastDiceRoll?.[1]} = {(lastDiceRoll?.[0] || 0) + (lastDiceRoll?.[1] || 0)}. Vyber akci, nebo předej tah.</p>{!hasCompletedTileAction && <button type="button" className="mobile-switch cursor-pointer" onClick={onSwitchDirection}>↩ Raději jít na pole {alternateTile.id}: {alternateTile.name}</button>}</div>
-            )}
           </section>
 
           {/* Board route */}
@@ -216,28 +196,18 @@ export function MobileGameView({
             {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p></div>}
           </section>
 
-          {/* Tile actions */}
-          {canActOnTile && <section className="mobile-actions" aria-label="Akce na aktuálním poli">
-            <div className="mobile-section-label">AKCE NA POLI</div>
-            {shopAvailable && <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🏪</span><span><strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong><small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small></span><ChevronRight size={18} /></button>}
-            {currentTile.hasAstralGate && <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌀</span><span><strong>Vstoupit do astrální sféry</strong><small>Vyzvat strážce a získat artefakt</small></span><ChevronRight size={18} /></button>}
-            <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🎴</span><span><strong>Tahat kartu dobrodružství</strong><small>Událost, poklad nebo souboj</small></span><ChevronRight size={18} /></button>
-            <button type="button" onClick={onRest} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌿</span><span><strong>Odpočinout si</strong><small>Obnovit 1 Sílu nebo 1 Vůli</small></span><ChevronRight size={18} /></button>
-            <button type="button" onClick={onEndTurn} className="mobile-end-turn cursor-pointer">Ukončit tah a předat hru <ChevronRight size={18} /></button>
-          </section>}
-
           {/* HERO HUD & INVENTORY SECTION (Always accessible on map!) */}
-          <section className="mobile-hero-hud" aria-label="Výbava a inventář aktivního hrdiny">
+          <section className="mobile-hero-hud" aria-label={isOnline ? 'Moje výbava a inventář' : 'Výbava a inventář hráče na tahu'}>
             <div className="mobile-hud-header">
               <div className="flex items-center gap-2">
                 <span className="text-base">🎒</span>
                 <span className="text-xs font-black uppercase tracking-wider text-amber-400 font-serif">
-                  Výbava & Karty: {activePlayer.name}
+                  {isOnline ? 'Moje výbava' : 'Výbava hráče na tahu'}
                 </span>
               </div>
               <button
                 type="button"
-                onClick={() => setInspectingPlayer(activePlayer)}
+                onClick={() => setInspectingPlayerId(hudPlayer.id)}
                 className="text-[11px] font-bold text-amber-300 hover:text-amber-200 underline cursor-pointer flex items-center gap-1"
               >
                 <span>📜 Celý deník</span>
@@ -251,7 +221,7 @@ export function MobileGameView({
                 <span className="mobile-hud-stat-val text-orange-400">
                   {physAttack.total}{' '}
                   <span className="text-[10px] text-stone-400 font-normal">
-                    (Síla {activePlayer.currentStrength} + {physAttack.equipmentBonus})
+                    (Síla {hudPlayer.currentStrength} + {physAttack.equipmentBonus})
                   </span>
                 </span>
               </div>
@@ -267,20 +237,20 @@ export function MobileGameView({
                 <span className="mobile-hud-stat-val text-indigo-300">
                   {mentalAttack.total}{' '}
                   <span className="text-[10px] text-stone-400 font-normal">
-                    (Vůle {activePlayer.currentWill} + {mentalAttack.equipmentBonus})
+                    (Vůle {hudPlayer.currentWill} + {mentalAttack.equipmentBonus})
                   </span>
                 </span>
               </div>
             </div>
 
             {/* Artifacts badges if any */}
-            {activePlayer.artifacts.length > 0 && (
+            {hudPlayer.artifacts.length > 0 && (
               <div className="mb-2.5 p-2 rounded-xl bg-purple-950/60 border border-purple-800/60 flex items-center justify-between text-xs">
                 <span className="font-bold text-purple-300 flex items-center gap-1">
-                  <Sparkles size={14} /> Získané Artefakty ({activePlayer.artifacts.length}/4):
+                  <Sparkles size={14} /> Získané Artefakty ({hudPlayer.artifacts.length}/4):
                 </span>
                 <div className="flex gap-1.5">
-                  {activePlayer.artifacts.map((art) => (
+                  {hudPlayer.artifacts.map((art) => (
                     <span
                       key={art.id}
                       className="px-2 py-0.5 rounded bg-purple-900 border border-purple-500 font-bold text-[10px] text-purple-200"
@@ -294,13 +264,13 @@ export function MobileGameView({
             )}
 
             {/* Inventory cards */}
-            {activePlayer.inventory.length === 0 ? (
+            {hudPlayer.inventory.length === 0 ? (
               <div className="p-3 rounded-xl bg-stone-950/70 border border-stone-800/80 text-center text-xs text-stone-400">
                 <span>Inventář je prázdný. Zbraně, zbroj a lektvary získáš nákupem ve městě či v provinciích.</span>
               </div>
             ) : (
               <div className="mobile-inventory-list">
-                {activePlayer.inventory.map((item, idx) => (
+                {hudPlayer.inventory.map((item, idx) => (
                   <div key={`${item.id}-${idx}`} className="mobile-item-chip">
                     <div className="mobile-item-chip-header">
                       <span className="mobile-item-chip-name" title={item.name}>
@@ -313,7 +283,7 @@ export function MobileGameView({
                       </span>
                     </div>
                     <span className="mobile-item-chip-desc">{item.description}</span>
-                    {item.type === 'potion' && isMyTurn && (
+                    {item.type === 'potion' && isMyTurn && hudPlayer.id === activePlayer.id && (
                       <button
                         type="button"
                         onClick={() => onUseItem(item)}
@@ -355,7 +325,7 @@ export function MobileGameView({
       {inspectingPlayer && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200"
-          onClick={() => setInspectingPlayer(null)}
+          onClick={() => setInspectingPlayerId(null)}
         >
           <div
             className="w-full max-w-xl max-h-[90vh] overflow-y-auto"
@@ -365,7 +335,7 @@ export function MobileGameView({
               player={inspectingPlayer}
               isActive={inspectingPlayer.id === activePlayer.id}
               onUseItem={inspectingPlayer.id === activePlayer.id && isMyTurn ? onUseItem : undefined}
-              onClose={() => setInspectingPlayer(null)}
+              onClose={() => setInspectingPlayerId(null)}
             />
           </div>
         </div>

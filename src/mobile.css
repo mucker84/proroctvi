@@ -5,122 +5,53 @@
   background: radial-gradient(circle at 50% -10%, #413228 0, #17151a 45%, #100f14 100%);
 }
 
-.mobile-header {
+.mobile-topbar {
   position: sticky;
   top: 0;
   z-index: 35;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(214, 172, 98, .22);
+  background: rgba(20, 17, 20, .97);
+  box-shadow: 0 8px 20px #0008;
+  backdrop-filter: blur(16px);
+}
+.mobile-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 66px;
-  padding: 10px 16px;
-  background: rgba(20, 17, 20, .94);
-  border-bottom: 1px solid rgba(214, 172, 98, .22);
-  backdrop-filter: blur(16px);
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 10px 4px;
 }
-.mobile-brand { color: #edcb83; font: 800 17px Georgia, serif; letter-spacing: .16em; }
-.mobile-header-meta { margin-top: 3px; color: #aea49a; font-size: 11px; }
-.mobile-header-button { min-width: 58px; min-height: 40px; padding: 0 10px; border: 1px solid #685949; border-radius: 10px; color: #e8d7bd; font-weight: 700; font-size: 12px; }
+.mobile-brand { color: #edcb83; font: 800 14px Georgia, serif; letter-spacing: .12em; }
+.mobile-header-meta { margin-top: 2px; color: #aea49a; font-size: 10px; }
+.mobile-header-button { min-width: 54px; min-height: 38px; padding: 0 9px; border: 1px solid #685949; border-radius: 10px; color: #e8d7bd; font-weight: 700; font-size: 11px; }
 
-.mobile-scoreboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px 12px 8px; }
-.mobile-player { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 8px; border: 1px solid #3c3533; border-radius: 14px; background: #211d20; }
-.mobile-player.is-active { border-color: #cda153; background: linear-gradient(130deg, #3b3026, #211d20); box-shadow: 0 0 0 1px #a77c3a55 inset; }
-.mobile-player-portrait { flex: 0 0 39px; width: 39px; height: 39px; display: grid; place-items: center; overflow: hidden; border-radius: 9px; background: #42372c; font-size: 22px; }
+.mobile-scoreboard { display: grid; gap: 3px; padding: 2px 8px 4px; }
+.mobile-player { display: grid; grid-template-columns: minmax(54px, 1.1fr) repeat(6, minmax(0, 1fr)); align-items: stretch; gap: 3px; min-width: 0; min-height: 52px; width: 100%; padding: 3px; border: 1px solid #3c3533; border-radius: 10px; background: #211d20; color: #f5efe3; text-align: center; }
+.mobile-player.is-active { border-color: #cda153; background: linear-gradient(90deg, #3b3026, #211d20); box-shadow: 0 0 0 1px #a77c3a55 inset; }
+.mobile-player:focus-visible { outline: 2px solid #f0c77d; outline-offset: 2px; }
+.mobile-player-identity { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; }
+.mobile-player-portrait { flex: 0 0 22px; width: 22px; height: 22px; display: grid; place-items: center; overflow: hidden; border-radius: 5px; background: #42372c; font-size: 14px; }
 .mobile-player-portrait img { width: 100%; height: 100%; object-fit: cover; }
-.mobile-player-info { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
-.mobile-player-label { color: #d7ad6a; font-size: 9px; font-weight: 900; letter-spacing: .08em; white-space: nowrap; }
-.mobile-player-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-
-.mobile-player-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 3px;
-}
-.mobile-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  font-size: 9.5px;
-  font-weight: 800;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-.pill-hp { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
-.pill-will { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
-.pill-gold { background: rgba(234, 179, 8, 0.25); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.6); font-weight: 900; }
-.pill-exp { background: rgba(16, 185, 129, 0.22); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.5); font-weight: 900; }
-.pill-art { background: rgba(168, 85, 247, 0.22); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); }
-
-/* Prominent Active Hero Resource Bar */
-.mobile-resource-bar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 7px;
-  margin: 12px 0;
-}
-.mobile-res-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: #241e23;
-  border: 1px solid #483d35;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  transition: transform 0.15s ease;
-}
-.mobile-res-chip.res-gold {
-  border-color: #ca8a04;
-  background: linear-gradient(135deg, rgba(202, 138, 4, 0.2), #231c19);
-}
-.mobile-res-chip.res-exp {
-  border-color: #059669;
-  background: linear-gradient(135deg, rgba(5, 150, 105, 0.2), #18221c);
-}
-.mobile-res-chip.res-str {
-  border-color: #dc2626;
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), #26191b);
-}
-.mobile-res-chip.res-will {
-  border-color: #2563eb;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), #191b26);
-}
-.res-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-.res-meta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.res-val {
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1.1;
-  color: #fff;
-}
-.res-gold .res-val { color: #fde047; }
-.res-exp .res-val { color: #86efac; }
-.res-str .res-val { color: #fca5a5; }
-.res-will .res-val { color: #93c5fd; }
-.res-label {
-  font-size: 8.5px;
-  font-weight: 800;
-  color: #b5a99f;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+.mobile-player-label { color: #e5bd7a; font-size: 8px; font-weight: 900; line-height: 1; white-space: nowrap; }
+.mobile-player-name { display: none; }
+.mobile-player-turn { position: absolute; top: 0; right: 0; padding: 1px 2px; border-radius: 3px; background: #e6b861; color: #24180c; font-size: 6px; font-weight: 900; }
+.mobile-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; border-radius: 6px; background: #16151a; }
+.mobile-stat > span { color: #aaa29c; font-size: 8px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+.mobile-stat strong { color: #f5efe3; font-size: clamp(12px, 3.6vw, 15px); font-variant-numeric: tabular-nums; font-weight: 900; line-height: 1.1; white-space: nowrap; }
+.stat-strength strong { color: #ffadad; }
+.stat-will strong { color: #a9c5ff; }
+.stat-gold strong { color: #ffe17a; }
+.stat-exp strong { color: #a5eac0; }
+.stat-art strong { color: #d5b4ff; }
+.stat-items strong { color: #eacaa0; }
 
 /* Grand Prophecy Quest Banner */
 .mobile-quest-banner {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 14px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
   background: linear-gradient(135deg, rgba(88, 28, 135, 0.4), #1c1822);
   border: 1px solid #7e22ce;
   box-shadow: 0 4px 14px rgba(0,0,0,0.3);
@@ -129,7 +60,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .mobile-quest-spheres {
   display: grid;
@@ -141,7 +72,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 6px 3px;
+  padding: 3px 2px;
   border-radius: 9px;
   border: 1px solid #4a3e56;
   background: #17141f;
@@ -164,7 +95,7 @@
 }
 
 .mobile-main { max-width: 680px; margin: 0 auto; padding: 0 12px 20px; }
-.mobile-scene { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: clamp(188px, 28vh, 260px); padding: 16px; border: 1px solid #67523a; border-radius: 18px; background-size: cover; background-position: center; box-shadow: 0 12px 32px #0005; }
+.mobile-scene { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: clamp(136px, 20vh, 200px); padding: 12px; border: 1px solid #67523a; border-radius: 14px; background-size: cover; background-position: center; box-shadow: 0 12px 32px #0005; }
 .mobile-scene-top { display: flex; align-items: center; gap: 6px; color: #f5d79a; font-size: 10px; font-weight: 900; letter-spacing: .15em; }
 .mobile-scene-bottom { display: flex; align-items: end; gap: 11px; }
 .mobile-scene-icon { flex: 0 0 44px; display: grid; place-items: center; height: 44px; border: 1px solid #b99257; border-radius: 12px; background: #2e2724de; font-size: 24px; }
@@ -321,6 +252,22 @@
 .mobile-nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #a99f9b; font-size: 10px; font-weight: 800; }
 .mobile-nav button.is-active { color: #f0c77d; }
 .mobile-nav button.is-active::before { position: absolute; top: 0; width: 50px; height: 2px; background: #efc675; content: ''; }
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 1023px) {
+  .mobile-game { padding-bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .mobile-topbar { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 5px; padding: 4px 8px; }
+  .mobile-header { display: grid; justify-content: start; gap: 2px; min-height: 0; padding: 0; }
+  .mobile-header-button { min-height: 26px; justify-self: start; padding: 0 8px; }
+  .mobile-scoreboard { gap: 2px; padding: 0; }
+  .mobile-player { min-height: 38px; }
+  .mobile-player-portrait { display: none; }
+  .mobile-player-turn { right: 1px; }
+  .mobile-main { max-width: 900px; }
+  .mobile-turn, .mobile-route, .mobile-actions { margin-top: 8px; }
+  .mobile-dice { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 1.3fr); align-items: center; padding: 8px; }
+  .mobile-dice > div:last-child { padding: 5px; }
+  .mobile-scene { min-height: 120px; }
+  .mobile-nav { min-height: calc(48px + env(safe-area-inset-bottom)); }
+}
 @media (max-width: 1023px) {
   .mobile-combat-content { max-height: calc(100dvh - 24px); overflow-y: auto; padding: 14px; }
   .mobile-combat-content .grid.grid-cols-2 { gap: 7px; }
@@ -353,27 +300,32 @@
     padding: 0 24px;
   }
   .mobile-player {
-    padding: 12px 16px;
-    gap: 12px;
-    border-radius: 16px;
+    grid-template-columns: minmax(105px, 1.3fr) repeat(6, minmax(0, 1fr));
+    padding: 7px;
+    gap: 5px;
+    border-radius: 12px;
+  }
+  .mobile-player-identity {
+    display: grid;
+    grid-template-columns: 35px minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    column-gap: 7px;
+    text-align: left;
   }
   .mobile-player-portrait {
-    flex: 0 0 48px;
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    font-size: 26px;
+    grid-row: 1 / 3;
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    font-size: 21px;
   }
   .mobile-player-label {
-    font-size: 11px;
+    align-self: end;
+    font-size: 9px;
   }
-  .mobile-player-info strong {
-    font-size: 14px;
-  }
-  .mobile-player-stats {
-    font-size: 12px;
-    margin-top: 2px;
-  }
+  .mobile-player-name { display: block; overflow: hidden; align-self: start; color: #c9c0b4; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-stat > span { font-size: 9px; }
+  .mobile-stat strong { font-size: 16px; }
   .mobile-main {
     max-width: 1140px;
     padding: 0 24px 30px;

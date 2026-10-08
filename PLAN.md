@@ -47,6 +47,7 @@ Určeno pro nasazení na Vercel (7ax.fun).
 - Spodní navigace zpřístupňuje plán, deníky hrdinů a záznam hry. Online soupeř vidí průběh tahu, ale nemá aktivní akce. Lokální hra střídá hráče na stejném zařízení.
 - Nové ilustrace lokací se přidávají přes `BoardTile.image`; bez obrázku se použije mapa království. Doporučený výřez lokace je na šířku alespoň 3:2 se čitelným středem a volným spodním okrajem pro text. Portréty hrdinů mají fungovat i ve čtvercovém výřezu; názvy a stav jsou vždy text, nikoli součást obrázku.
 - Karty, souboje a obchod se otevírají nad herní obrazovkou a na menší výšce se posouvají uvnitř dialogu.
+- Aktuální mobilní přehled má dvě stálé řady hráčů se stejnými sloupci: Síla, Vůle, Zlato, Zkušenosti, Artefakty a počet věcí. Jméno a portrét jsou vedlejší; klepnutí na řadu otevře deník. V online hře zůstává spodní výbava místního hráče jeho vlastní i během soupeřova tahu. Ovládání tahu a akce jsou před doplňkovou lištou sfér a mapou.
 
 ---
 
@@ -59,7 +60,7 @@ Pro návrhy mobilního GUI, multiplayeru a testování čti [společný herní i
 Podrobný audit a kritéria jsou v [docs/SHARED-TABLE.md](docs/SHARED-TABLE.md). Z dosavadních zaškrtnutých funkcí nevyplývá dokončený online herní průchod; lokální sonda protokolu z 2026-10-08 odhalila pět neprošlých kontrol.
 
 1. [ ] M1: správný roster hráčů, serverové ověření příkazů a revizí, společné karty/souboje/odměny, obnova partie a test dvou klientů.
-2. [ ] M2: prostorová deska, stabilní HUD a akce v dosahu palce, samostatný landscape; oba hráči vidí stejnou událost a mohou se nezávisle rozhlížet.
+2. [ ] M2: prostorová deska, stabilní HUD a akce v dosahu palce, samostatný landscape; oba hráči vidí stejnou událost a mohou se nezávisle rozhlížet. První iterace porovnávacího HUD a pořadí akcí je hotová; prostorová deska a společné události zbývají.
 3. [ ] M3: krátké zvuky/animace, ukázání na pole, reakce a další ilustrace podle přínosu.
 
 Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-BRIEF.md), výstupy vyhrazené do `docs/gemini/`. Prompt je připravený k předání; přímé spuštění Gemini z tohoto chatu není dostupné.
@@ -83,3 +84,4 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Codex · Audit společného deskového zážitku (lokální protokol 0/5 kontrol), předání GUI poznatků Kartiček, plán M1–M3 a připravené zadání Gemini; opravy multiplayeru a nový stůl čekají na implementaci · rozpracovano
 2026-10-08 · Antigravity · Implementace Hero HUD a okamžitého inventáře na hlavní herní ploše, zobrazení zlaťáků/exp/výbavy ve scoreboardu, klikací deník hrdinů a oprava lektvarů · hotovo
 2026-10-08 · Antigravity · Vizuální Resource Bar (výrazné zlaťáky, expy, HP, mana), Lišta Proroctví (sledování 4 artefaktů ze sfér), barevné pilulky ve scoreboardu a zobrazení jmění u akcí · hotovo
+2026-10-08 · Codex · Mobilní porovnání zdrojů obou hráčů nahradilo duplicitní lišty; akce tahu přesunuty do dosahu, mapa se posouvá jen vodorovně, ověřeno v lokálním hotseat na 360×640, 390×844 a 844×390 · hotovo

@@ -2,6 +2,8 @@
 
 Datum: 2026-10-08. Výchozí revize pro audit: 5ddcb2e. Stav: návrh dalšího vývoje; níže popsané chybějící vlastnosti nejsou implementované.
 
+Průběžná změna 2026-10-08: porovnávací mobilní HUD, místní výbava během soupeřova tahu a umístění akcí před mapou jsou implementované. Lokální vizuální a hotseat ověření popisuje [report mobilního HUD](reports/2026-10-08-mobile-hud.md). Ostatní mezery auditu, zejména serverová autorita a sdílené karty/souboje, zůstávají otevřené.
+
 ## Cíl hráče
 
 Dva vzdálení hráči mají pocit, že sedí nad stejnou deskou. Oba vidí, kam hrdina jde, co vytáhl, jak dopadly kostky a proč získal odměnu. I během cizího tahu mají co sledovat a mohou si prohlížet herní situaci. Přepnutí aplikace nebo ztráta připojení nesmí zničit společnou partii.

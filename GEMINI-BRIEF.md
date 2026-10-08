@@ -2,6 +2,8 @@
 
 Pracuješ v C:/xampp/htdocs/games/proroctvi. Uživatel chce: „herní sdílenej zážitek, ale přes mobil, jako bychom hráli deskovku“. Jsou dva vzdálení hráči, každý na svém telefonu. Hra už má React, místnosti, hrdiny, mapu, karty a souboje. Teď potřebujeme promyslet společný stůl a čitelné ovládání.
 
+Aktuální stav 2026-10-08: Codex už přímo implementoval první iteraci mobilního přehledu. Nahoře jsou dvě stálé porovnávací řady zdrojů, jména jsou vedlejší a ovládání tahu je před mapou. Ber je jako současný základ, posuď čitelnost a ovládání; prototyp může navrhnout zlepšení, ale staré duplicitní lišty nevracej. Lokální hotseat test je v docs/reports/2026-10-08-mobile-hud.md.
+
 ## Nejdřív načti
 
 - C:/xampp/htdocs/AGENTS.md a poslední Denik v PLAN.md.
