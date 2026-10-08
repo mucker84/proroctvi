@@ -89,4 +89,6 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Antigravity · Zjednodušení připojení přes odkaz (přímá dedikovaná pozvánka, předvyplněná místnost a výběr postavy bez bloudění v lobby) · hotovo
 2026-10-08 · Antigravity · Pravidlové omezení na 1 akci/kartu na poli za tah, jasné fázování tahu (Pohyb -> Akce -> Dokončeno) a automatické předání tahu po vyčerpání možností · hotovo
 2026-10-08 · Antigravity · Přehledné porovnání bojových šancí přímo na kartě dobrodružství (hrdina vs netvor, kořist, výhoda/riziko) · hotovo
+2026-10-08 · Codex · Navržen kompaktnější grafický směr bez zásahu do kódu; do docs/pravidla uložena oficiální pravidla 3. vydání od ALTARu pro budoucí porovnání adaptace · hotovo
+2026-10-08 · Antigravity · Živý stavový řádek (mobilní ticker s poslední akcí ze záznamu pod scoreboardem a živý text v boxu soupeře) · hotovo
 

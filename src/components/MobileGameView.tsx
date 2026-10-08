@@ -54,6 +54,7 @@ export function MobileGameView({
   const ownPlayerIndex = isOnline && mySeat === 'p2' ? 1 : 0
   const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
   const inspectingPlayer = game.players.find((player) => player.id === inspectingPlayerId) ?? null
+  const latestLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[0] : null
 
   const physAttack = calculatePlayerAttack(hudPlayer, 'physical', 0)
   const mentalAttack = calculatePlayerAttack(hudPlayer, 'mental', 0)
@@ -111,6 +112,21 @@ export function MobileGameView({
           </button>
         ))}
       </div>
+
+      {/* Live Status Ticker (Poslední akce ze záznamu) */}
+      {latestLog && (
+        <button
+          type="button"
+          onClick={() => setTab('log')}
+          className="mobile-status-ticker cursor-pointer text-left"
+          title="Poslední událost ve hře (Klepnutím otevřeš celý záznam)"
+          aria-label={`Poslední událost: ${latestLog}`}
+        >
+          <span className="mobile-status-ticker-tag">ŽIVĚ</span>
+          <span className="mobile-status-ticker-text">{latestLog}</span>
+          <span className="mobile-status-ticker-more">Záznam ›</span>
+        </button>
+      )}
       </div>
 
       {tab === 'map' ? (
@@ -135,10 +151,12 @@ export function MobileGameView({
             </div>
             {!isMyTurn ? (
               <div className="mobile-wait">
-                <Swords size={22} />
-                <div>
-                  <strong>Hraje {activePlayer.name}</strong>
-                  <p>Jeho tah probíhá živě na plánu. Jakmile skončí, budeš na řadě.</p>
+                <Swords size={22} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <strong>Hraje soupeř: {activePlayer.name}</strong>
+                  <p className="line-clamp-2 mt-0.5 text-stone-300">
+                    {latestLog || 'Jeho tah probíhá živě na plánu. Jakmile skončí, budeš na řadě.'}
+                  </p>
                 </div>
               </div>
             ) : !hasRolledForMove ? (
