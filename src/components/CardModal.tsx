@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
-import { AdventureCard } from '../engine/types'
+import { calculatePlayerAttack } from '../engine/gameEngine'
+import { AdventureCard, Player } from '../engine/types'
 
 interface CardModalProps {
   card: AdventureCard
+  player?: Player
   onEngageCombat: () => void
   onClaimTreasure: () => void
   onFlee: () => void
@@ -10,6 +12,7 @@ interface CardModalProps {
 
 export const CardModal: React.FC<CardModalProps> = ({
   card,
+  player,
   onEngageCombat,
   onClaimTreasure,
   onFlee,
@@ -18,6 +21,20 @@ export const CardModal: React.FC<CardModalProps> = ({
 
   const isMonster = card.type === 'monster'
   const isTreasure = card.type === 'treasure'
+
+  const combatType = card.monster
+    ? card.monster.combatType === 'both'
+      ? 'physical'
+      : card.monster.combatType
+    : 'physical'
+  const playerBaseAttack =
+    player && card.monster ? calculatePlayerAttack(player, combatType, 0).total : 0
+  const enemyBaseAttack = card.monster
+    ? combatType === 'physical'
+      ? card.monster.strength
+      : card.monster.will
+    : 0
+  const oddsDiff = playerBaseAttack - enemyBaseAttack
 
   return (
     <div className="mobile-modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -110,8 +127,33 @@ export const CardModal: React.FC<CardModalProps> = ({
                       <span className="text-emerald-400">⭐ +{card.monster.rewardExp} Exp</span>
                     </div>
                   </div>
+
+                  {/* Player vs Monster Odds Comparison */}
+                  {player && (
+                    <div
+                      className={`mt-2 p-2 rounded-lg text-[11px] font-bold flex items-center justify-between border ${
+                        oddsDiff > 0
+                          ? 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
+                          : oddsDiff === 0
+                          ? 'bg-amber-950/70 border-amber-700 text-amber-300'
+                          : 'bg-rose-950/70 border-rose-700 text-rose-300'
+                      }`}
+                    >
+                      <span>
+                        Tvůj základ: {combatType === 'physical' ? '⚔️ Síla' : '🔮 Vůle'} {playerBaseAttack} vs {enemyBaseAttack}
+                      </span>
+                      <span>
+                        {oddsDiff > 0
+                          ? `🟢 Máš výhodu (+${oddsDiff})`
+                          : oddsDiff === 0
+                          ? '🟡 Vyrovnané šance'
+                          : `🔴 Netvor je silnější (${oddsDiff})`}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="mt-1 text-[10px] text-emerald-400/90 font-mono text-center">
-                    ⚡ Stačí 1 úspěšný zásah k poražení netvora!
+                    ⚡ Stačí 1 úspěšný hod k poražení netvora a zisku kořisti!
                   </div>
                 </div>
               )}

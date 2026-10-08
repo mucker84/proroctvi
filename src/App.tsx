@@ -889,6 +889,7 @@ export const App: React.FC = () => {
       {drawnCard && (
         <CardModal
           card={drawnCard}
+          player={activePlayer}
           onEngageCombat={handleEngageCombat}
           onClaimTreasure={handleClaimTreasure}
           onFlee={() => {
