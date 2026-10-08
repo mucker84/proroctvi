@@ -162,16 +162,38 @@ export function resolveAICombat(
   let pWill = player.currentWill
   let guardianHits = isGuardian ? 2 : 1
   let won = false
-  const combatType = monster.combatType === 'both' ? 'physical' : monster.combatType
+  const log: string[] = []
+
+  let combatType: 'physical' | 'mental' = 'physical'
+  if (monster.combatType === 'mental') {
+    combatType = 'mental'
+  } else if (monster.combatType === 'both') {
+    // Intelligent choice: compare strength vs will advantages
+    const pPhysicalBase = calculatePlayerAttack(player, 'physical', 0).total
+    const pMentalBase = calculatePlayerAttack({ ...player, currentWill: Math.max(0, pWill - 2) }, 'mental', 0).total
+    const physicalAdvantage = pPhysicalBase - monster.strength
+    const mentalAdvantage = pMentalBase - monster.will
+
+    if (pWill >= 2 && mentalAdvantage > physicalAdvantage) {
+      combatType = 'mental'
+      pWill -= 2 // Paid 2 will to invoke mental combat
+      log.push(`🔮 🤖 ${player.name} zaplatil 2 Vůli a vyvolal Boj vůlí proti ${monster.name}!`)
+    } else {
+      combatType = 'physical'
+      log.push(`⚔ 🤖 ${player.name} zvolil Boj silou proti ${monster.name}.`)
+    }
+  } else {
+    combatType = 'physical'
+  }
+
   const enemyBase = combatType === 'physical' ? monster.strength : monster.will
   const defense = calculatePlayerDefense(player)
-  const log: string[] = []
 
   let round = 1
   while (round <= 15) {
     const pRoll = Math.floor(Math.random() * 6) + 1
     const eRoll = Math.floor(Math.random() * 6) + 1
-    const pAttack = calculatePlayerAttack(player, combatType, pRoll)
+    const pAttack = calculatePlayerAttack({ ...player, currentStrength: pStr, currentWill: pWill }, combatType, pRoll)
     const pTotal = pAttack.total
     const eTotal = enemyBase + eRoll
 

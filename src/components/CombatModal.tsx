@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
-import {
-  calculatePlayerAttack,
-  calculatePlayerDefense,
-} from '../engine/gameEngine'
+import { useState } from 'react'
+import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
 import { CombatState, Player, Spell } from '../engine/types'
+import { BattleComparison } from './BattleComparison'
+
+type BattleMode = 'physical' | 'mental'
 
 interface CombatModalProps {
   player: Player
@@ -13,406 +13,235 @@ interface CombatModalProps {
   onFleeCombat?: () => void
 }
 
-export const CombatModal: React.FC<CombatModalProps> = ({
-  player,
-  combat,
-  onCombatEnd,
-  onUpdatePlayerStats,
-  onFleeCombat,
-}) => {
-  const [currentCombat, setCurrentCombat] = useState<CombatState>(combat)
-  const isGuardian = combat.isSphereGuardian
-  // Guardian needs 2 successful hits to defeat; normal monsters die in 1 hit!
-  const [guardianHitsRemaining, setGuardianHitsRemaining] = useState<number>(isGuardian ? 2 : 1)
-  const [playerStrength, setPlayerStrength] = useState(player.currentStrength)
-  const [playerWill, setPlayerWill] = useState(player.currentWill)
-  const [isRolling, setIsRolling] = useState(false)
+interface RoundState {
+  combat: CombatState
+  strength: number
+  will: number
+  hits: number
+}
+
+function isSpellAvailable(spell: Spell, mode: BattleMode, will: number) {
+  return spell.willCost <= will && (spell.id !== 'spell_mind_blast' || mode === 'mental')
+}
+
+function playRound(state: RoundState, player: Player, mode: BattleMode, spell: Spell | null): RoundState {
+  const pRoll = Math.floor(Math.random() * 6) + 1
+  const eRoll = Math.floor(Math.random() * 6) + 1
+  const cast = spell && isSpellAvailable(spell, mode, state.will) ? spell : null
+  let strength = state.strength
+  let will = state.will - (cast?.willCost ?? 0)
+  let hits = state.hits
+  const log = [...state.combat.log]
+  if (cast?.id === 'spell_heal') strength = Math.min(player.maxStrength, strength + 3)
+
+  const attack = calculatePlayerAttack({ ...player, currentStrength: strength, currentWill: will }, mode, pRoll)
+  const pTotal = attack.total + (cast?.combatBonus ?? 0)
+  const eTotal = (mode === 'physical' ? state.combat.enemy.strength : state.combat.enemy.will) + eRoll
+  let finished = false
+  let won: boolean | null = null
+
+  log.push(`Kolo ${state.combat.round} · ${mode === 'physical' ? 'Síla' : 'Vůle'}: hrdina ${pTotal} (🎲 ${pRoll}) : ${eTotal} (🎲 ${eRoll}) nepřítel${cast ? ` · ${cast.name}` : ''}`)
+  if (pTotal > eTotal) {
+    hits = Math.max(0, hits - 1)
+    finished = hits === 0
+    won = finished ? true : null
+    log.push(finished ? 'Vítězný zásah! Souboj končí.' : `Zásah! Strážci zbývá ${hits} zásah.`)
+  } else if (eTotal > pTotal) {
+    const rawDamage = eTotal - pTotal
+    const armor = mode === 'physical' ? calculatePlayerDefense(player) : 0
+    const shield = cast?.id === 'spell_shield_of_light' ? 2 : 0
+    const damage = Math.max(0, Math.max(1, rawDamage - armor) - shield)
+    if (mode === 'physical') strength = Math.max(0, strength - damage)
+    else will = Math.max(0, will - damage)
+    log.push(damage === 0 ? 'Světelný štít pohltil celý zásah.' : `Nepřítel zasáhl: −${damage} ${mode === 'physical' ? 'síly' : 'vůle'}${armor || shield ? ` (zbroj ${armor}, štít ${shield})` : ''}.`)
+    if (strength <= 0 || (mode === 'mental' && will <= 0)) {
+      finished = true
+      won = false
+      log.push('Hrdina v souboji padl.')
+    }
+  } else {
+    log.push('Remíza. Nikdo neutrpěl zranění.')
+  }
+
+  return {
+    strength, will, hits,
+    combat: {
+      ...state.combat, combatType: mode, round: state.combat.round + 1,
+      playerRoll: pRoll, enemyRoll: eRoll, playerTotalAttack: pTotal, enemyTotalAttack: eTotal,
+      log, isFinished: finished, playerWon: won,
+    },
+  }
+}
+
+export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, onFleeCombat }: CombatModalProps) {
+  const [state, setState] = useState<RoundState>({
+    combat, strength: player.currentStrength, will: player.currentWill,
+    hits: combat.isSphereGuardian ? 2 : 1,
+  })
+  const [mode, setMode] = useState<BattleMode>(combat.combatType === 'mental' ? 'mental' : 'physical')
   const [selectedSpell, setSelectedSpell] = useState<Spell | null>(null)
+  const [rolling, setRolling] = useState(false)
+  const current = state.combat
+  const canChooseMode = current.enemy.combatType === 'both'
+  const canSwitchMode = current.round === 1 && current.playerRoll === null && !rolling && !current.isFinished
+  const canAffordMental = state.will >= 2 || (current.invokedMentalCostPaid ?? false)
+  const equipment = player.inventory.filter((item) => item.strengthBonus || item.willBonus || item.defenseBonus)
+  const modeBonus = mode === 'physical' ? 'strengthBonus' : 'willBonus'
+  const previewStrength = selectedSpell?.id === 'spell_heal' ? Math.min(player.maxStrength, state.strength + 3) : state.strength
+  const previewWill = state.will - (selectedSpell?.willCost ?? 0)
 
-  // Single round execution according to official Prophecy board game rules
-  const executeRound = () => {
-    if (isRolling || currentCombat.isFinished) return
-
-    setIsRolling(true)
-
-    setTimeout(() => {
-      const pRoll = Math.floor(Math.random() * 6) + 1
-      const eRoll = Math.floor(Math.random() * 6) + 1
-
-      const combatType = currentCombat.combatType === 'both' ? 'physical' : currentCombat.combatType
-      const pAttack = calculatePlayerAttack(player, combatType, pRoll)
-      let spellBonus = 0
-
-      if (selectedSpell && playerWill >= selectedSpell.willCost) {
-        spellBonus = selectedSpell.combatBonus || 0
-        setPlayerWill((w) => Math.max(0, w - selectedSpell.willCost))
-        setSelectedSpell(null)
-      }
-
-      const playerTotal = pAttack.total + spellBonus
-      const enemyBase = combatType === 'physical' ? currentCombat.enemy.strength : currentCombat.enemy.will
-      const enemyTotal = enemyBase + eRoll
-
-      const newLog = [...currentCombat.log]
-      let newPlStr = playerStrength
-      let newPlWill = playerWill
-      let newGuardianHits = guardianHitsRemaining
-      let finished = false
-      let won: boolean | null = null
-
-      newLog.push(
-        `Kolo ${currentCombat.round}: Hráč hodil 🎲 ${pRoll} (celkem ${playerTotal}) vs ${currentCombat.enemy.name} hodil 🎲 ${eRoll} (celkem ${enemyTotal})`
-      )
-
-      if (playerTotal > enemyTotal) {
-        // PLAYER WINS THIS ROUND!
-        if (!isGuardian) {
-          // Normal monster is instantly defeated in 1 hit!
-          finished = true
-          won = true
-          newLog.push(`💥 Rozhodující úder! Porazil jsi ${currentCombat.enemy.name}!`)
-        } else {
-          // Sphere Guardian boss
-          newGuardianHits = Math.max(0, newGuardianHits - 1)
-          setGuardianHitsRemaining(newGuardianHits)
-          if (newGuardianHits === 0) {
-            finished = true
-            won = true
-            newLog.push(`🏆 Strážce sféry byl definitivně poražen! Artefakt je tvůj!`)
-          } else {
-            newLog.push(`⚔️ Zasáhl jsi Strážce sféry! Zbývá ještě ${newGuardianHits} zásah.`)
-          }
-        }
-      } else if (enemyTotal > playerTotal) {
-        // ENEMY WINS THIS ROUND! Player takes damage
-        if (combatType === 'physical') {
-          const defense = calculatePlayerDefense(player)
-          const rawDamage = enemyTotal - playerTotal
-          const damage = Math.max(1, rawDamage - defense)
-          newPlStr = Math.max(0, newPlStr - damage)
-          newLog.push(
-            `🩸 Nepřítel tě zasáhl! Utrpěl jsi ${damage} zranění (zbroj odrazila ${defense}). (Zbývá: ${newPlStr} Životů)`
-          )
-        } else {
-          // Mental combat hurts Will
-          const damage = Math.max(1, enemyTotal - playerTotal)
-          newPlWill = Math.max(0, newPlWill - damage)
-          newLog.push(
-            `🔮 Nepřítel zlomil tvou mysl! Ztrácíš ${damage} Vůle. (Zbývá: ${newPlWill} Vůle)`
-          )
-        }
-
-        setPlayerStrength(newPlStr)
-        setPlayerWill(newPlWill)
-        onUpdatePlayerStats(newPlStr, newPlWill)
-
-        if (newPlStr <= 0 || (combatType === 'mental' && newPlWill <= 0)) {
-          finished = true
-          won = false
-          newLog.push(`💀 Porážka! Tvůj hrdina podlehl v boji...`)
-        }
-      } else {
-        // TIE
-        newLog.push('🛡️ Vyrovnaný střet! Zbraně se zkřížily, nikdo nebyl zraněn.')
-      }
-
-      setCurrentCombat({
-        ...currentCombat,
-        round: currentCombat.round + 1,
-        playerRoll: pRoll,
-        enemyRoll: eRoll,
-        playerTotalAttack: playerTotal,
-        enemyTotalAttack: enemyTotal,
-        log: newLog,
-        isFinished: finished,
-        playerWon: won,
-      })
-
-      setIsRolling(false)
-    }, 450)
-  }
-
-  // Instant auto-resolve button for quick mobile combat
-  const handleAutoResolve = () => {
-    if (isRolling || currentCombat.isFinished) return
-
-    let roundCount = currentCombat.round
-    let pStr = playerStrength
-    let pWill = playerWill
-    let gHits = guardianHitsRemaining
-    let won: boolean | null = null
-    const newLog = [...currentCombat.log, '⚡ Bleskové vyhodnocení souboje:']
-
-    const combatType = currentCombat.combatType === 'both' ? 'physical' : currentCombat.combatType
-    const enemyBase = combatType === 'physical' ? currentCombat.enemy.strength : currentCombat.enemy.will
-    const defense = calculatePlayerDefense(player)
-
-    while (roundCount < 20) {
-      const pRoll = Math.floor(Math.random() * 6) + 1
-      const eRoll = Math.floor(Math.random() * 6) + 1
-      const pAttack = calculatePlayerAttack(player, combatType, pRoll)
-      const pTot = pAttack.total
-      const eTot = enemyBase + eRoll
-
-      if (pTot > eTot) {
-        if (!isGuardian) {
-          won = true
-          newLog.push(`Kolo ${roundCount}: Hráč ${pTot} vs Netvor ${eTot} ➔ Vítězný zásah!`)
-          break
-        } else {
-          gHits--
-          newLog.push(`Kolo ${roundCount}: Hráč ${pTot} vs Strážce ${eTot} ➔ Zásah! (zbývá ${gHits})`)
-          if (gHits <= 0) {
-            won = true
-            break
-          }
-        }
-      } else if (eTot > pTot) {
-        if (combatType === 'physical') {
-          const dmg = Math.max(1, (eTot - pTot) - defense)
-          pStr = Math.max(0, pStr - dmg)
-          newLog.push(`Kolo ${roundCount}: Netvor ${eTot} vs Hráč ${pTot} ➔ Hráč utrpěl ${dmg} zranění.`)
-        } else {
-          const dmg = Math.max(1, eTot - pTot)
-          pWill = Math.max(0, pWill - dmg)
-          newLog.push(`Kolo ${roundCount}: Netvor ${eTot} vs Hráč ${pTot} ➔ Hráč ztratil ${dmg} Vůle.`)
-        }
-
-        if (pStr <= 0 || (combatType === 'mental' && pWill <= 0)) {
-          won = false
-          newLog.push(`💀 Hrdina padl v boji.`)
-          break
-        }
-      }
-      roundCount++
+  const handleSelectPhysical = () => {
+    if (!canSwitchMode || mode === 'physical') return
+    let nextWill = state.will
+    let costPaid = current.invokedMentalCostPaid
+    if (current.enemy.combatType === 'both' && current.invokedMentalCostPaid) {
+      nextWill = Math.min(player.maxWill, state.will + 2)
+      costPaid = false
+      onUpdatePlayerStats(state.strength, nextWill)
     }
-
-    setPlayerStrength(pStr)
-    setPlayerWill(pWill)
-    setGuardianHitsRemaining(gHits)
-    onUpdatePlayerStats(pStr, pWill)
-
-    setCurrentCombat({
-      ...currentCombat,
-      round: roundCount,
-      log: newLog,
-      isFinished: true,
-      playerWon: won,
-    })
+    setMode('physical')
+    setSelectedSpell(null)
+    setState((prev) => ({
+      ...prev,
+      will: nextWill,
+      combat: {
+        ...prev.combat,
+        combatType: 'physical',
+        invokedMentalCostPaid: costPaid,
+      },
+    }))
   }
 
-  // Flee from combat
-  const handleFlee = () => {
-    if (onFleeCombat) {
-      onFleeCombat()
-    } else {
-      onCombatEnd(false)
+  const handleSelectMental = () => {
+    if (!canSwitchMode || mode === 'mental') return
+    let nextWill = state.will
+    let costPaid = current.invokedMentalCostPaid
+    if (current.enemy.combatType === 'both' && !current.invokedMentalCostPaid) {
+      if (state.will < 2) return
+      nextWill = state.will - 2
+      costPaid = true
+      onUpdatePlayerStats(state.strength, nextWill)
     }
+    setMode('mental')
+    setSelectedSpell(null)
+    setState((prev) => ({
+      ...prev,
+      will: nextWill,
+      combat: {
+        ...prev.combat,
+        combatType: 'mental',
+        invokedMentalCostPaid: costPaid,
+      },
+    }))
   }
 
-  const combatType = currentCombat.combatType === 'both' ? 'physical' : currentCombat.combatType
+  const commit = (next: RoundState) => {
+    setState(next)
+    setSelectedSpell(null)
+    if (next.strength !== state.strength || next.will !== state.will) onUpdatePlayerStats(next.strength, next.will)
+  }
+
+  const attack = () => {
+    if (rolling || current.isFinished) return
+    setRolling(true)
+    window.setTimeout(() => {
+      commit(playRound(state, player, mode, selectedSpell))
+      setRolling(false)
+    }, 380)
+  }
+
+  const quickFight = () => {
+    if (rolling || current.isFinished) return
+    let next = state
+    let rounds = 0
+    do {
+      next = playRound(next, player, mode, rounds === 0 ? selectedSpell : null)
+      rounds++
+    } while (!next.combat.isFinished && rounds < 100)
+    commit(next)
+  }
 
   return (
-    <div className="mobile-modal fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="mobile-combat-content w-full max-w-2xl bg-stone-900 border-2 border-red-900/80 rounded-2xl shadow-2xl p-6 flex flex-col gap-4 text-stone-100">
-        {/* Arena Header */}
-        <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">{isGuardian ? '👑' : '⚔️'}</span>
-            <div>
-              <h2 className="text-xl font-black text-red-500 uppercase tracking-wider font-serif m-0 leading-tight">
-                {isGuardian ? 'Souboj se Strážcem Sféry' : 'Souboj s Monstrem'}
-              </h2>
-              <p className="text-xs text-stone-400 m-0 mt-0.5">
-                {combatType === 'physical'
-                  ? 'Fyzický souboj mečem a zbrojí (stačí 1 vítězný zásah k zabití!)'
-                  : 'Mentální střet vůlí a kouzly (útočí se na Vůli!)'}
-              </p>
-            </div>
-          </div>
-          <div className="px-3 py-1 bg-stone-800 border border-stone-700 rounded-full text-xs font-bold text-amber-400">
-            Kolo {currentCombat.round}
-          </div>
-        </div>
+    <div className="battle-overlay" role="presentation">
+      <section className="battle-dialog" role="dialog" aria-modal="true" aria-label="Souboj">
+        <div className="battle-scroll">
+          <header className="battle-heading">
+            <div><span className="battle-eyebrow">{combat.isSphereGuardian ? 'STRÁŽCE SFÉRY' : 'DOBRODRUŽSTVÍ'} · KOLO {current.round}</span><h2>Souboj</h2></div>
+            <span className="battle-heading-icon" aria-hidden="true">{combat.isSphereGuardian ? '✦' : '⚔'}</span>
+          </header>
 
-        {/* Combatants Showcase */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Player Card */}
-          <div className="p-4 bg-stone-950/80 rounded-xl border border-stone-800 flex flex-col items-center">
-            {player.heroClass.image ? (
-              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-500 shadow-lg mb-2">
-                <img
-                  src={player.heroClass.image}
-                  alt={player.heroClass.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ) : (
-              <div className="text-3xl mb-1">{player.heroClass.avatar}</div>
-            )}
-            <div className="font-bold text-sm text-stone-100">{player.name}</div>
-            <div className="text-xs text-amber-400 font-semibold">{player.heroClass.name}</div>
+          <div className="battle-resource-row"><span>Hrdina <b>♥ {state.strength}/{player.maxStrength}</b><b>✦ {state.will}/{player.maxWill}</b></span><span>Protivník <b>{state.hits} {state.hits === 1 ? 'zásah' : 'zásahy'}</b></span></div>
 
-            <div className="w-full mt-3 flex justify-between text-xs px-2">
-              <span className="text-red-400 font-bold">❤️ Životy (Síla):</span>
-              <span className="text-stone-100 font-black">
-                {playerStrength} / {player.maxStrength}
-              </span>
-            </div>
-            <div className="w-full flex justify-between text-xs px-2 mt-1">
-              <span className="text-blue-400 font-bold">🔮 Mana (Vůle):</span>
-              <span className="text-stone-100 font-black">{playerWill} / {player.maxWill}</span>
-            </div>
-
-            {currentCombat.playerRoll !== null && (
-              <div className="mt-3 p-2 bg-stone-900 rounded-lg text-center w-full border border-stone-800">
-                <div className="text-[10px] text-stone-400 uppercase">Tvůj hod kostkou</div>
-                <div className="text-lg font-black text-amber-400">
-                  🎲 {currentCombat.playerRoll} (Celkem: {currentCombat.playerTotalAttack})
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Enemy Card */}
-          <div className="p-4 bg-stone-950/80 rounded-xl border border-red-950 flex flex-col items-center">
-            {currentCombat.enemy.image ? (
-              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-red-600 shadow-lg mb-2">
-                <img
-                  src={currentCombat.enemy.image}
-                  alt={currentCombat.enemy.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ) : (
-              <div className="text-3xl mb-1">
-                {isGuardian ? '👑' : '👹'}
-              </div>
-            )}
-            <div className="font-bold text-sm text-red-400 text-center">{currentCombat.enemy.name}</div>
-            <div className="text-xs text-stone-400 font-semibold">
-              {isGuardian ? 'Astrální Strážce' : 'Běžný netvor'}
-            </div>
-
-            <div className="w-full mt-3 flex justify-between text-xs px-2">
-              <span className="text-stone-300 font-bold">
-                {combatType === 'physical' ? '⚔️ Síla netvora:' : '🔮 Vůle netvora:'}
-              </span>
-              <span className="text-amber-400 font-black">
-                {combatType === 'physical' ? currentCombat.enemy.strength : currentCombat.enemy.will}
-              </span>
-            </div>
-
-            <div className="w-full flex justify-between text-xs px-2 mt-1">
-              <span className="text-stone-400">Odolnost:</span>
-              <span className="text-stone-200 font-bold">
-                {isGuardian ? `${guardianHitsRemaining} zásahy` : '1 zásah = smrt'}
-              </span>
-            </div>
-
-            {currentCombat.enemyRoll !== null && (
-              <div className="mt-3 p-2 bg-stone-900 rounded-lg text-center w-full border border-stone-800">
-                <div className="text-[10px] text-stone-400 uppercase">Hod netvora</div>
-                <div className="text-lg font-black text-red-400">
-                  🎲 {currentCombat.enemyRoll} (Celkem: {currentCombat.enemyTotalAttack})
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Victory Reward Preview */}
-        {currentCombat.isFinished && currentCombat.playerWon && (
-          <div className="p-3 bg-amber-950/70 border-2 border-amber-500 rounded-xl flex items-center justify-around animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
-              <span className="text-xl">🪙</span>
-              <span>+{currentCombat.enemy.rewardGold} Zlaťáků</span>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-              <span className="text-xl">⭐</span>
-              <span>+{currentCombat.enemy.rewardExp} Zkušeností</span>
-            </div>
-          </div>
-        )}
-
-        {/* Combat Log */}
-        <div className="h-28 overflow-y-auto bg-stone-950/90 rounded-xl p-3 border border-stone-800 text-xs font-mono flex flex-col gap-1">
-          {currentCombat.log.map((entry, idx) => (
-            <div key={idx} className="text-stone-300">
-              {entry}
-            </div>
-          ))}
-        </div>
-
-        {/* Action Controls */}
-        <div className="pt-2 border-t border-stone-800 flex flex-col gap-2.5">
-          {!currentCombat.isFinished ? (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 w-full">
-              {/* Optional Spells */}
-              {player.spells.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap">
-                  {player.spells.map((spell) => (
-                    <button
-                      key={spell.id}
-                      onClick={() =>
-                        setSelectedSpell(selectedSpell?.id === spell.id ? null : spell)
-                      }
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border cursor-pointer transition-all ${
-                        selectedSpell?.id === spell.id
-                          ? 'bg-blue-600 border-blue-400 text-white'
-                          : 'bg-stone-800 border-stone-700 text-blue-300'
-                      }`}
-                    >
-                      ✨ {spell.name} ({spell.willCost} 🔮)
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
-                {/* Flee button (enabled after round 1 or anytime) */}
-                <button
-                  onClick={handleFlee}
-                  className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white font-bold text-xs uppercase cursor-pointer border border-stone-700 transition-all"
-                  title="Uprchnout z boje a zachránit si holý život"
-                >
-                  🏃 Uprchnout
-                </button>
-
-                {/* Quick Auto-resolve */}
-                <button
-                  onClick={handleAutoResolve}
-                  className="px-4 py-2.5 rounded-xl bg-amber-950 hover:bg-amber-900 text-amber-300 font-bold text-xs uppercase cursor-pointer border border-amber-800 transition-all"
-                  title="Bleskově vyhodnotit souboj podle pravidel"
-                >
-                  ⚡ Rychlý boj
-                </button>
-
-                {/* Roll attack */}
-                <button
-                  onClick={executeRound}
-                  disabled={isRolling}
-                  className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
-                >
-                  <span>🎲</span>
-                  <span>{isRolling ? 'Házím...' : 'Zaútočit!'}</span>
-                </button>
-              </div>
-            </div>
-          ) : (
+          <p className="battle-section-title">Způsob boje</p>
+          <div className="battle-mode-choices" role="group" aria-label="Způsob boje">
             <button
-              onClick={() => onCombatEnd(currentCombat.playerWon || false)}
-              className={`w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg cursor-pointer transition-all ${
-                currentCombat.playerWon
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-stone-950 shadow-amber-950/50'
-                  : 'bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700'
-              }`}
+              className={mode === 'physical' ? 'is-selected' : ''}
+              disabled={!canSwitchMode || current.enemy.combatType === 'mental'}
+              onClick={handleSelectPhysical}
             >
-              {currentCombat.playerWon ? '🎉 Sebrat kořist a pokračovat' : '💀 Hrdina padl – Obrodit se ve městě'}
+              ⚔ Síla <small>{current.enemy.combatType === 'mental' ? 'nedostupná' : 'zbraně a zbroj · zdarma'}</small>
             </button>
-          )}
+            <button
+              className={mode === 'mental' ? 'is-selected' : ''}
+              disabled={!canSwitchMode || current.enemy.combatType === 'physical' || (!canAffordMental && mode !== 'mental')}
+              onClick={handleSelectMental}
+              title={!canAffordMental ? 'Nemáš dost Vůle (min. 2 🔮)' : ''}
+            >
+              ✦ Vůle <small>{current.enemy.combatType === 'physical' ? 'nedostupná' : current.enemy.combatType === 'both' ? 'kouzla a mysl · stojí 2 🔮' : 'kouzla a mysl · zdarma'}</small>
+            </button>
+          </div>
+          {!canChooseMode && <p className="battle-hint">Tento nepřítel vyžaduje {mode === 'physical' ? 'boj silou' : 'boj vůlí'}.</p>}
+          {canChooseMode && !canSwitchMode && <p className="battle-hint">Způsob boje je pro tento souboj uzamčen ({mode === 'physical' ? 'fyzický boj' : 'boj vůlí'}).</p>}
+          {canChooseMode && canSwitchMode && mode === 'mental' && <p className="battle-hint">🔮 Bojuješ vůlí: Za navázání duševního kontaktu odečteny 2 Vůle.</p>}
+
+          <BattleComparison player={player} enemy={current.enemy} mode={mode} strength={previewStrength} will={previewWill}
+            playerRoll={current.playerRoll} enemyRoll={current.enemyRoll} playerTotal={current.playerTotalAttack} enemyTotal={current.enemyTotalAttack}
+            spellBonus={selectedSpell?.combatBonus ?? 0} />
+          {current.enemy.specialAbility && <p className="battle-warning">⚠ {current.enemy.specialAbility}</p>}
+
+          {!current.isFinished && <>
+            <p className="battle-section-title">Zbraně a výbava <span>započteny automaticky</span></p>
+            <div className="battle-equipment">
+              {equipment.length ? equipment.map((item) => {
+                const bonuses = [
+                  item[modeBonus] ? `+${item[modeBonus]} ${mode === 'physical' ? 'síla' : 'vůle'}` : '',
+                  mode === 'physical' && item.defenseBonus ? `+${item.defenseBonus} zbroj` : '',
+                ].filter(Boolean)
+                return <span key={item.id}>⚔ {item.name} <b>{bonuses.length ? bonuses.join(' · ') : `účinkuje při boji ${mode === 'physical' ? 'vůlí' : 'silou'}`}</b></span>
+              }) : <span>Bez zbraně · základní útok hrdiny</span>}
+              {player.artifacts.map((art) => <span key={art.id}>✦ {art.name} <b>+{mode === 'physical' ? art.strengthBonus : art.willBonus}</b></span>)}
+              {player.heroClass.id === 'warrior' && mode === 'physical' && <span>⚔ Válečník <b>+1 síla</b></span>}
+            </div>
+
+            <p className="battle-section-title">Kouzlo <span>volitelné před hodem</span></p>
+            <div className="battle-spells" role="group" aria-label="Kouzlo pro toto kolo">
+              <button className={!selectedSpell ? 'is-selected' : ''} onClick={() => setSelectedSpell(null)} disabled={rolling}>Bez kouzla<small>0 vůle</small></button>
+              {player.spells.map((spell) => {
+                const available = isSpellAvailable(spell, mode, state.will)
+                return <button key={spell.id} className={selectedSpell?.id === spell.id ? 'is-selected' : ''} disabled={!available || rolling} onClick={() => setSelectedSpell(spell)} title={spell.effect}>
+                  {spell.name}<small>−{spell.willCost} vůle · {spell.effect}</small>
+                </button>
+              })}
+            </div>
+            {player.spells.length === 0 && <p className="battle-hint">Hrdina zatím nezná žádné kouzlo.</p>}
+            {selectedSpell && <p className="battle-hint">Vybráno: {selectedSpell.name}. Účinek se použije v příštím kole.</p>}
+          </>}
+
+          {current.isFinished && <div className={`battle-outcome ${current.playerWon ? 'is-win' : 'is-loss'}`} role="status">
+            <strong>{current.playerWon ? 'Vítězství' : 'Porážka'}</strong>
+            {current.playerWon && <span>Kořist 🪙 +{current.enemy.rewardGold} · ✦ +{current.enemy.rewardExp} zkušeností</span>}
+          </div>}
+          <details className="battle-log"><summary>Průběh boje · {current.log.length} záznamů</summary><ol>{current.log.map((entry, index) => <li key={index}>{entry}</li>)}</ol></details>
         </div>
-      </div>
+
+        <footer className="battle-actions">
+          {current.isFinished ? <button className="battle-button-primary" onClick={() => onCombatEnd(Boolean(current.playerWon))}>{current.playerWon ? 'Sebrat kořist a pokračovat' : 'Pokračovat do města'}</button> : <>
+            <button className="battle-button-secondary" disabled={rolling} onClick={() => onFleeCombat ? onFleeCombat() : onCombatEnd(false)}>Uprchnout</button>
+            <button className="battle-button-secondary" disabled={rolling} onClick={quickFight}>Rychlý boj</button>
+            <button className="battle-button-primary" disabled={rolling} onClick={attack}>{rolling ? 'Házím…' : '🎲 Hodit kostkou'}</button>
+          </>}
+        </footer>
+      </section>
     </div>
   )
 }

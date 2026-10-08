@@ -150,7 +150,7 @@ export interface CombatState {
   enemy: Monster
   isSphereGuardian: boolean
   round: number
-  combatType: CombatType
+  combatType: 'physical' | 'mental'
   playerRoll: number | null
   enemyRoll: number | null
   playerTotalAttack: number | null
@@ -158,6 +158,7 @@ export interface CombatState {
   log: string[]
   isFinished: boolean
   playerWon: boolean | null
+  invokedMentalCostPaid?: boolean
 }
 
 export interface GameState {

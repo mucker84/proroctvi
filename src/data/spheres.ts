@@ -42,7 +42,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     guardian: {
       id: 'guardian_ice',
       name: 'Ledový Drak',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 10,
       will: 6,
       rewardGold: 12,
@@ -101,7 +101,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     guardian: {
       id: 'guardian_storm',
       name: 'Hromový Titán',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 11,
       will: 5,
       rewardGold: 10,

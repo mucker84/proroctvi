@@ -30,7 +30,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_bandit',
       name: 'Vůdce lapků',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 5,
       will: 2,
       rewardGold: 5,
@@ -56,7 +56,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_treant',
       name: 'Obrněný Ent',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 7,
       will: 5,
       rewardGold: 4,
@@ -140,7 +140,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_goblin',
       name: 'Skřetí tlupa',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 4,
       will: 2,
       rewardGold: 3,
@@ -200,7 +200,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_harpy',
       name: 'Harpyje',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 5,
       will: 4,
       rewardGold: 4,
@@ -309,7 +309,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_nomad',
       name: 'Náčelník nájezdníků',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 5,
       will: 3,
       rewardGold: 6,
@@ -335,7 +335,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_griffin',
       name: 'Zlatý Gryf',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 7,
       will: 4,
       rewardGold: 7,
@@ -399,7 +399,7 @@ export const ADVENTURE_CARDS: AdventureCard[] = [
     monster: {
       id: 'm_pirates',
       name: 'Pirátský kapitán',
-      combatType: 'physical',
+      combatType: 'both',
       strength: 5,
       will: 3,
       rewardGold: 7,

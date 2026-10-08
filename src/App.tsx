@@ -377,9 +377,37 @@ export const App: React.FC = () => {
   }
 
   // Engage combat
-  const handleEngageCombat = () => {
+  const handleEngageCombat = (chosenMode: 'physical' | 'mental' = 'physical') => {
     if (!drawnCard || !drawnCard.monster || !isMyTurn) return
-    const combat = startCombatWithMonster(drawnCard.monster)
+    const monster = drawnCard.monster
+    const isBoth = monster.combatType === 'both'
+    const payingWill = chosenMode === 'mental' && isBoth
+
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+
+    if (payingWill) {
+      if (currentPlayer.currentWill < 2) return
+      currentPlayer.currentWill -= 2
+      updatedPlayers[game.activePlayerIndex] = currentPlayer
+    }
+
+    const combat = startCombatWithMonster(monster, false, chosenMode, payingWill)
+
+    const nextLog = payingWill
+      ? [
+          `${currentPlayer.name} zaplatil 2 Vůli a vyvolal boj vůlí proti ${monster.name}!`,
+          ...game.gameLog.slice(0, 15),
+        ]
+      : game.gameLog
+
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      gameLog: nextLog,
+    }
+    pushStateUpdate(nextState)
+
     setActiveCombat(combat)
     setDrawnCard(null)
   }
@@ -395,7 +423,8 @@ export const App: React.FC = () => {
       return
     }
 
-    const combat = startCombatWithMonster(sphere.guardian, true)
+    const initialMode: 'physical' | 'mental' = sphere.guardian.combatType === 'mental' ? 'mental' : 'physical'
+    const combat = startCombatWithMonster(sphere.guardian, true, initialMode, false)
     setActiveCombat(combat)
   }
 

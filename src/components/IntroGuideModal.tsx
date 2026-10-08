@@ -89,6 +89,33 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
             </div>
           </div>
 
+          {/* Boj silou vs. Boj vůlí */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-950/40 via-stone-900 to-indigo-950/40 border border-blue-500/40 flex flex-col gap-2">
+            <div className="text-xs font-bold text-blue-300 flex items-center gap-1.5 uppercase tracking-wider">
+              <span>🔮</span>
+              <span>Boj silou vs. Boj vůlí (Zlaté pravidlo):</span>
+            </div>
+            <p className="text-[11px] text-stone-200">
+              „Boj vůlí má vždy přednost před bojem silou.“ U inteligentních nepřátel máš na výběr:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-stone-300">
+              <div className="p-2 rounded-xl bg-stone-950/80 border border-stone-800 flex items-start gap-2">
+                <span className="text-lg shrink-0">⚔️</span>
+                <div>
+                  <strong className="text-stone-100 block">Boj silou (Zdarma):</strong>
+                  Fyzické zbraně, zbroje a tělesná Síla (ideální pro Válečníka). Se zvířaty bojuješ vždy silou.
+                </div>
+              </div>
+              <div className="p-2 rounded-xl bg-stone-950/80 border border-blue-900/80 flex items-start gap-2">
+                <span className="text-lg shrink-0">✦</span>
+                <div>
+                  <strong className="text-blue-300 block">Vyvolat boj vůlí (−2 🔮):</strong>
+                  Zaplatíš 2 Vůli za duševní kontakt a protivníka rozdrtíš kouzly a myslí bez škrábnutí na těle!
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Jak probíhá tah */}
           <div className="p-3.5 rounded-2xl bg-stone-950/80 border border-stone-800 flex flex-col gap-2">
             <div className="font-bold text-xs text-stone-200 flex items-center gap-1.5">

@@ -153,9 +153,13 @@ export function calculatePlayerDefense(player: Player): number {
 
 export function startCombatWithMonster(
   enemy: Monster,
-  isSphereGuardian = false
+  isSphereGuardian = false,
+  chosenCombatType?: 'physical' | 'mental',
+  invokedMentalCostPaid = false
 ): CombatState {
-  const combatType = enemy.combatType === 'both' ? 'physical' : enemy.combatType
+  const combatType = chosenCombatType ?? (enemy.combatType === 'both' ? 'physical' : enemy.combatType)
+  const modeLabel = combatType === 'physical' ? 'Fyzický boj (Síla)' : 'Mentální boj (Vůle)'
+  const extraNote = combatType === 'mental' && enemy.combatType === 'both' ? ' · Vyvolán boj vůlí (-2 🔮 Vůle)' : ''
   return {
     enemy,
     isSphereGuardian,
@@ -165,8 +169,9 @@ export function startCombatWithMonster(
     enemyRoll: null,
     playerTotalAttack: null,
     enemyTotalAttack: null,
-    log: [`Boj začíná! Protivník: ${enemy.name} (${combatType === 'physical' ? 'Fyzický boj' : 'Mentální boj'}).`],
+    log: [`Boj začíná! Protivník: ${enemy.name} (${modeLabel}${extraNote}).`],
     isFinished: false,
     playerWon: null,
+    invokedMentalCostPaid,
   }
 }

@@ -95,3 +95,6 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Antigravity · Rozšíření úvodního průvodce o význam karet dobrodružství (zdroj bohatství: netvoři za zlato/expy a poklady) · hotovo
 2026-10-08 · Antigravity · Přidání startovních kouzel pro Kouzelníka (Ohnivá koule), Warlocka a Druida a výuka arkánních kouzel v chrámech · hotovo
 
+2026-10-08 · Codex · Přepracována mobilní karta dobrodružství a společné okno běžných i sférických soubojů: hrdina/nepřítel proti sobě, síla/vůle, výbava, kouzla a výsledek hodu; opraveno použití kouzel a průběžných hodnot, ověřen build, lint a lokální průchod kartou i kolem boje · hotovo
+2026-10-08 · Antigravity · Implementace volby Boj silou vs. Boj vůlí (-2 Vůle) u inteligentních monster a strážců podle Chvátilových pravidel, dynamické srovnání šancí a zobrazení v intru · hotovo
+
