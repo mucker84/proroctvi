@@ -171,6 +171,7 @@ export interface CombatState {
   log: string[]
   isFinished: boolean
   playerWon: boolean | null
+  result?: 'win' | 'loss' | 'draw'
   invokedMentalCostPaid?: boolean
 }
 

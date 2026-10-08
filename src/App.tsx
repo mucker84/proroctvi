@@ -9,8 +9,11 @@ import { BOARD_TILES } from './data/board'
 import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
 import {
+  applyCombatLoss,
+  CombatResult,
   createInitialGame,
   drawCardForTerrain,
+  getClaimedSpheres,
   getTacticalMoveOptions,
   startCombatWithMonster,
 } from './engine/gameEngine'
@@ -51,6 +54,11 @@ const withTileMonster = (
   return next
 }
 
+const combatLossLog = (name: string, enemy: string, died: boolean) =>
+  died
+    ? `💀 ${name} zahynul v boji s ${enemy}. Zlato, výbava i artefakty propadly, pokračuje nová postava na startovním cechu.`
+    : `${name} prohrál s ${enemy} a ztratil 1 život.`
+
 export const App: React.FC = () => {
   const [appScreen, setAppScreen] = useState<'LOBBY' | 'GAME'>('LOBBY')
   const [game, setGame] = useState<GameState>(() => createInitialGame())
@@ -62,13 +70,8 @@ export const App: React.FC = () => {
   const [combatCard, setCombatCard] = useState<AdventureCard | null>(null)
   const [hasMoved, setHasMoved] = useState(false)
   const [hasCompletedTileAction, setHasCompletedTileAction] = useState(false)
-  const [claimedSpheres, setClaimedSpheres] = useState<Record<SphereElement, string | null>>({
-    fire: null,
-    ice: null,
-    shadow: null,
-    storm: null,
-    magic: null,
-  })
+  // Odvozeno z artefaktů hráčů → oba online klienti vidí totéž
+  const claimedSpheres = getClaimedSpheres(game.players)
 
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null)
@@ -271,7 +274,6 @@ export const App: React.FC = () => {
     setShowShop(false)
     setHasMoved(false)
     setHasCompletedTileAction(false)
-    setClaimedSpheres({ fire: null, ice: null, shadow: null, storm: null, magic: null })
     setGame(createInitialGame())
     handleLeaveRoom()
   }
@@ -339,10 +341,10 @@ export const App: React.FC = () => {
       currentPlayer.gold += 2
       logAction = `${currentPlayer.name} vykonal odbornou práci ve městě (-1 Vůle, +2 🪙 zl).`
     } else if (type === 'guild_work') {
-      if (currentPlayer.currentStrength <= 1) return
-      currentPlayer.currentStrength -= 1
+      if (currentPlayer.currentWill < 1) return
+      currentPlayer.currentWill -= 1
       currentPlayer.gold += 3
-      logAction = `${currentPlayer.name} splnil špinavou práci pro Gildu (-1 Síla, +3 🪙 zl).`
+      logAction = `${currentPlayer.name} splnil špinavou práci pro Gildu (-1 Vůle, +3 🪙 zl).`
     } else if (type === 'fortress_training') {
       if (currentPlayer.currentStrength <= 1) return
       currentPlayer.currentStrength -= 1
@@ -476,35 +478,38 @@ export const App: React.FC = () => {
   }
 
   // Resolve combat end
-  const handleCombatEnd = (playerWon: boolean) => {
+  const handleCombatEnd = (result: CombatResult) => {
     if (!activeCombat) return
 
     const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    let currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
     const battleTileId = currentPlayer.currentTileId
+    const playerWon = result === 'win'
     const tileMonsters = combatCard
       ? withTileMonster(game.tileMonsters, battleTileId, playerWon ? null : combatCard)
       : game.tileMonsters
+    let outcomeLog = ''
 
     if (playerWon) {
       currentPlayer.gold += activeCombat.enemy.rewardGold
       currentPlayer.experience += activeCombat.enemy.rewardExp
+      outcomeLog = `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
 
       if (activeCombat.isSphereGuardian) {
         const sphere = ASTRAL_SPHERES.find((s) => s.guardian.id === activeCombat.enemy.id)
         if (sphere && !currentPlayer.artifacts.some((a) => a.id === sphere.artifact.id)) {
-          currentPlayer.artifacts.push(sphere.artifact)
-          setClaimedSpheres((c) => ({ ...c, [sphere.id]: currentPlayer.name }))
+          currentPlayer.artifacts = [...currentPlayer.artifacts, sphere.artifact]
           confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
         }
       }
+    } else if (result === 'loss') {
+      const loss = applyCombatLoss(currentPlayer)
+      currentPlayer = loss.player
+      outcomeLog = combatLossLog(currentPlayer.name, activeCombat.enemy.name, loss.died)
     } else {
-      currentPlayer.currentStrength = currentPlayer.maxStrength
-      currentPlayer.currentWill = currentPlayer.maxWill
-      currentPlayer.currentTileId = currentPlayer.heroClass.startTileId
-      const lostGold = Math.floor(currentPlayer.gold / 2)
-      currentPlayer.gold = Math.max(0, currentPlayer.gold - lostGold)
+      outcomeLog = `${currentPlayer.name} remizoval s ${activeCombat.enemy.name}, tah končí.`
     }
+    if (!playerWon && combatCard) outcomeLog += ` ${activeCombat.enemy.name} dál číhá na poli #${battleTileId}.`
 
     updatedPlayers[game.activePlayerIndex] = currentPlayer
 
@@ -519,14 +524,7 @@ export const App: React.FC = () => {
       players: updatedPlayers,
       winner,
       tileMonsters,
-      gameLog: [
-        playerWon
-          ? `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
-          : `${currentPlayer.name} padl v boji. Obrodil se ve městě (-50 % zlaťáků za vzkříšení).${
-              combatCard ? ` ${activeCombat.enemy.name} dál číhá na poli #${battleTileId}.` : ''
-            }`,
-        ...game.gameLog.slice(0, 15),
-      ],
+      gameLog: [outcomeLog, ...game.gameLog.slice(0, 15)],
     }
 
     setActiveCombat(null)
@@ -778,7 +776,7 @@ export const App: React.FC = () => {
         const lyingMonster = game.tileMonsters?.[currentTile.id]
         const action = lyingMonster ? 'draw_card' : decideAITileAction(activePlayer, currentTile, claimedSpheres)
         const updatedPlayers = [...game.players]
-        const bot = { ...updatedPlayers[game.activePlayerIndex] }
+        let bot = { ...updatedPlayers[game.activePlayerIndex] }
         let logMsg = ''
         let tileMonsters = game.tileMonsters
 
@@ -811,18 +809,17 @@ export const App: React.FC = () => {
             bot.currentStrength = combatRes.newStrength
             bot.currentWill = combatRes.newWill
 
-            if (combatRes.playerWon) {
+            if (combatRes.result === 'win') {
               bot.gold += sphere.guardian.rewardGold
               bot.experience += sphere.guardian.rewardExp
-              bot.artifacts.push(sphere.artifact)
-              setClaimedSpheres((c) => ({ ...c, [sphere.id]: bot.name }))
+              bot.artifacts = [...bot.artifacts, sphere.artifact]
               logMsg = `🏆 🤖 ${bot.name} porazil Strážce a získal ${sphere.artifact.name}!`
+            } else if (combatRes.result === 'loss') {
+              const loss = applyCombatLoss(bot)
+              bot = loss.player
+              logMsg = `🤖 ${combatLossLog(bot.name, sphere.guardian.name, loss.died)}`
             } else {
-              bot.currentStrength = bot.maxStrength
-              bot.currentWill = bot.maxWill
-              bot.currentTileId = bot.heroClass.startTileId
-              bot.gold = Math.floor(bot.gold / 2)
-              logMsg = `💀 🤖 ${bot.name} padl v boji se Strážcem a probudil se ve městě.`
+              logMsg = `🤖 ${bot.name} remizoval se Strážcem sféry.`
             }
           }
         } else if (action === 'rest') {
@@ -852,17 +849,20 @@ export const App: React.FC = () => {
             bot.currentStrength = combatRes.newStrength
             bot.currentWill = combatRes.newWill
 
-            tileMonsters = withTileMonster(game.tileMonsters, currentTile.id, combatRes.playerWon ? null : card)
-            if (combatRes.playerWon) {
+            tileMonsters = withTileMonster(game.tileMonsters, currentTile.id, combatRes.result === 'win' ? null : card)
+            if (combatRes.result === 'win') {
               bot.gold += card.monster.rewardGold
               bot.experience += card.monster.rewardExp
               logMsg = `🤖 ${bot.name} v boji porazil ${card.monster.name} (+${card.monster.rewardGold} zl, +${card.monster.rewardExp} exp).`
             } else {
-              bot.currentStrength = bot.maxStrength
-              bot.currentWill = bot.maxWill
-              bot.currentTileId = bot.heroClass.startTileId
-              bot.gold = Math.floor(bot.gold / 2)
-              logMsg = `💀 🤖 ${bot.name} podlehl v boji s ${card.monster.name} a obrodil se ve městě. Netvor dál číhá na poli #${currentTile.id}.`
+              if (combatRes.result === 'loss') {
+                const loss = applyCombatLoss(bot)
+                bot = loss.player
+                logMsg = `🤖 ${combatLossLog(bot.name, card.monster.name, loss.died)}`
+              } else {
+                logMsg = `🤖 ${bot.name} remizoval s ${card.monster.name}.`
+              }
+              logMsg += ` Netvor dál číhá na poli #${currentTile.id}.`
             }
           }
         }

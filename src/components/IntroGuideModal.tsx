@@ -114,6 +114,9 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
                 </div>
               </div>
             </div>
+            <p className="text-[11px] text-stone-300">
+              <strong className="text-stone-100">Souboj rozhodne jeden hod:</strong> tvůj součet proti součtu netvora. Výhra = kořist, prohra = −1 život, remíza = nic. Po prohře i remíze tah končí a netvor zůstává ležet na poli. Ve sféře porážíš dva strážce za sebou.
+            </p>
           </div>
 
           {/* Jak probíhá tah */}

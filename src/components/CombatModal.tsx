@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
+import { calculatePlayerAttack, CombatResult, rollCombat } from '../engine/gameEngine'
 import { CombatState, Player, Spell } from '../engine/types'
 import { BattleComparison } from './BattleComparison'
 
@@ -8,7 +8,7 @@ type BattleMode = 'physical' | 'mental'
 interface CombatModalProps {
   player: Player
   combat: CombatState
-  onCombatEnd: (playerWon: boolean) => void
+  onCombatEnd: (result: CombatResult) => void
   onUpdatePlayerStats: (newStrength: number, newWill: number) => void
   onFleeCombat?: () => void
 }
@@ -24,51 +24,38 @@ function isSpellAvailable(spell: Spell, mode: BattleMode, will: number) {
   return spell.willCost <= will && (spell.id !== 'spell_mind_blast' || mode === 'mental')
 }
 
+// Jeden hod rozhoduje (pravidla ALTAR). Strážce sféry = nižší a vyšší strážce, tedy dvě vítězství po sobě.
 function playRound(state: RoundState, player: Player, mode: BattleMode, spell: Spell | null): RoundState {
-  const pRoll = Math.floor(Math.random() * 6) + 1
-  const eRoll = Math.floor(Math.random() * 6) + 1
   const cast = spell && isSpellAvailable(spell, mode, state.will) ? spell : null
   let strength = state.strength
-  let will = state.will - (cast?.willCost ?? 0)
+  const will = state.will - (cast?.willCost ?? 0)
   let hits = state.hits
   const log = [...state.combat.log]
   if (cast?.id === 'spell_heal') strength = Math.min(player.maxStrength, strength + 3)
 
-  const attack = calculatePlayerAttack({ ...player, currentStrength: strength, currentWill: will }, mode, pRoll)
-  const pTotal = attack.total + (cast?.combatBonus ?? 0)
-  const eTotal = (mode === 'physical' ? state.combat.enemy.strength : state.combat.enemy.will) + eRoll
-  let finished = false
-  let won: boolean | null = null
-
-  log.push(`Kolo ${state.combat.round} · ${mode === 'physical' ? 'Síla' : 'Vůle'}: hrdina ${pTotal} (🎲 ${pRoll}) : ${eTotal} (🎲 ${eRoll}) nepřítel${cast ? ` · ${cast.name}` : ''}`)
-  if (pTotal > eTotal) {
+  const attack = calculatePlayerAttack({ ...player, currentStrength: strength, currentWill: will }, mode, 0)
+  const enemyBase = mode === 'physical' ? state.combat.enemy.strength : state.combat.enemy.will
+  const roll = rollCombat(attack.total + (cast?.combatBonus ?? 0), enemyBase)
+  let result: CombatResult | undefined
+  if (roll.result === 'win') {
     hits = Math.max(0, hits - 1)
-    finished = hits === 0
-    won = finished ? true : null
-    log.push(finished ? 'Vítězný zásah! Souboj končí.' : `Zásah! Strážci zbývá ${hits} zásah.`)
-  } else if (eTotal > pTotal) {
-    const rawDamage = eTotal - pTotal
-    const armor = mode === 'physical' ? calculatePlayerDefense(player) : 0
-    const shield = cast?.id === 'spell_shield_of_light' ? 2 : 0
-    const damage = Math.max(0, Math.max(1, rawDamage - armor) - shield)
-    if (mode === 'physical') strength = Math.max(0, strength - damage)
-    else will = Math.max(0, will - damage)
-    log.push(damage === 0 ? 'Světelný štít pohltil celý zásah.' : `Nepřítel zasáhl: −${damage} ${mode === 'physical' ? 'síly' : 'vůle'}${armor || shield ? ` (zbroj ${armor}, štít ${shield})` : ''}.`)
-    if (strength <= 0 || (mode === 'mental' && will <= 0)) {
-      finished = true
-      won = false
-      log.push('Hrdina v souboji padl.')
-    }
+    if (hits === 0) result = 'win'
   } else {
-    log.push('Remíza. Nikdo neutrpěl zranění.')
+    result = roll.result === 'loss' && cast?.id === 'spell_shield_of_light' ? 'draw' : roll.result
   }
+
+  log.push(`Hod ${state.combat.round} · ${mode === 'physical' ? 'Síla' : 'Vůle'}: hrdina ${roll.playerTotal} (🎲 ${roll.playerRoll}) : ${roll.enemyTotal} (🎲 ${roll.enemyRoll}) nepřítel${cast ? ` · ${cast.name}` : ''}`)
+  if (roll.result === 'win') log.push(result === 'win' ? 'Vítězství! Nepřítel je poražen.' : 'Nižší strážce poražen! Na řadě je vyšší strážce.')
+  else if (roll.result === 'loss' && result === 'draw') log.push('Světelný štít tě uchránil — hod končí remízou.')
+  else if (result === 'loss') log.push('Prohra: hrdina ztrácí 1 život a jeho tah končí.')
+  else log.push('Remíza: nic se neděje, nepřítel zůstává a tah končí.')
 
   return {
     strength, will, hits,
     combat: {
       ...state.combat, combatType: mode, round: state.combat.round + 1,
-      playerRoll: pRoll, enemyRoll: eRoll, playerTotalAttack: pTotal, enemyTotalAttack: eTotal,
-      log, isFinished: finished, playerWon: won,
+      playerRoll: roll.playerRoll, enemyRoll: roll.enemyRoll, playerTotalAttack: roll.playerTotal, enemyTotalAttack: roll.enemyTotal,
+      log, isFinished: !!result, playerWon: result ? result === 'win' : null, result,
     },
   }
 }
@@ -227,16 +214,18 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
             {selectedSpell && <p className="battle-hint">Vybráno: {selectedSpell.name}. Účinek se použije v příštím kole.</p>}
           </>}
 
-          {current.isFinished && <div className={`battle-outcome ${current.playerWon ? 'is-win' : 'is-loss'}`} role="status">
-            <strong>{current.playerWon ? 'Vítězství' : 'Porážka'}</strong>
-            {current.playerWon && <span>Kořist 🪙 +{current.enemy.rewardGold} · ✦ +{current.enemy.rewardExp} zkušeností</span>}
+          {current.isFinished && <div className={`battle-outcome ${current.result === 'win' ? 'is-win' : 'is-loss'}`} role="status">
+            <strong>{current.result === 'win' ? 'Vítězství' : current.result === 'draw' ? 'Remíza' : 'Porážka'}</strong>
+            {current.result === 'win' && <span>Kořist 🪙 +{current.enemy.rewardGold} · ✦ +{current.enemy.rewardExp} zkušeností</span>}
+            {current.result === 'loss' && <span>−1 život{state.strength === 0 ? ' · při síle 0 to znamená smrt postavy' : ''}{combat.isSphereGuardian ? '' : ' · netvor zůstává na poli'}</span>}
+            {current.result === 'draw' && <span>Nic se nestalo{combat.isSphereGuardian ? '' : ' · netvor zůstává na poli'}</span>}
           </div>}
           <details className="battle-log"><summary>Průběh boje · {current.log.length} záznamů</summary><ol>{current.log.map((entry, index) => <li key={index}>{entry}</li>)}</ol></details>
         </div>
 
         <footer className="battle-actions">
-          {current.isFinished ? <button className="battle-button-primary" onClick={() => onCombatEnd(Boolean(current.playerWon))}>{current.playerWon ? 'Sebrat kořist a pokračovat' : 'Pokračovat do města'}</button> : <>
-            <button className="battle-button-secondary" disabled={rolling} onClick={() => onFleeCombat ? onFleeCombat() : onCombatEnd(false)}>Uprchnout</button>
+          {current.isFinished ? <button className="battle-button-primary" onClick={() => onCombatEnd(current.result ?? 'loss')}>{current.result === 'win' ? 'Sebrat kořist a pokračovat' : 'Pokračovat'}</button> : <>
+            <button className="battle-button-secondary" disabled={rolling} onClick={() => onFleeCombat ? onFleeCombat() : onCombatEnd('loss')}>Uprchnout</button>
             <button className="battle-button-secondary" disabled={rolling} onClick={quickFight}>Rychlý boj</button>
             <button className="battle-button-primary" disabled={rolling} onClick={attack}>{rolling ? 'Házím…' : '🎲 Hodit kostkou'}</button>
           </>}

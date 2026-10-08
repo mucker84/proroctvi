@@ -555,10 +555,10 @@ export function MobileGameView({
                 </span>
               </div>
               <div className="mobile-hud-stat-box">
-                <span className="mobile-hud-stat-title">🛡️ Zbroj / Obrana</span>
+                <span className="mobile-hud-stat-title">🛡️ Zbroj a štít</span>
                 <span className="mobile-hud-stat-val text-emerald-400">
                   +{defense}{' '}
-                  <span className="text-[10px] text-stone-400 font-normal">krytí</span>
+                  <span className="text-[10px] text-stone-400 font-normal">už v útoku</span>
                 </span>
               </div>
               <div className="mobile-hud-stat-box">

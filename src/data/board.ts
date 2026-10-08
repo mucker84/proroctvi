@@ -62,8 +62,8 @@ export const BOARD_TILES: BoardTile[] = [
     workAction: {
       type: 'guild_work',
       title: '🗡️ Špinavá práce v gildě',
-      description: 'Ztrácíš 1 život a získáváš 3 zlaťáky.',
-      costHp: 1,
+      description: 'Ztrácíš 1 Vůli a získáváš 3 zlaťáky.',
+      costWill: 1,
       rewardGold: 3,
     },
   },

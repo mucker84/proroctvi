@@ -20,43 +20,9 @@ export function createInitialGame(
     { name: 'Hrdina 2', heroClassId: 'mage' },
   ]
 ): GameState {
-  const players: Player[] = playerConfigs.map((cfg, index) => {
-    const heroClass =
-      HERO_CLASSES.find((h) => h.id === cfg.heroClassId) || HERO_CLASSES[0]
-
-    const startingSpells: Spell[] = []
-    if (heroClass.id === 'mage') {
-      const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
-      if (fb) startingSpells.push(fb)
-    } else if (heroClass.id === 'warlock') {
-      const mb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_mind_blast')
-      if (mb) startingSpells.push(mb)
-    } else if (heroClass.id === 'witch') {
-      const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
-      if (fb) startingSpells.push(fb)
-    } else if (heroClass.id === 'druid') {
-      const heal = AVAILABLE_SPELLS.find((s) => s.id === 'spell_heal')
-      if (heal) startingSpells.push(heal)
-    }
-
-    return {
-      id: `p-${index + 1}`,
-      name: cfg.name,
-      heroClass,
-      currentStrength: heroClass.baseStrength,
-      maxStrength: heroClass.baseStrength,
-      currentWill: heroClass.baseWill,
-      maxWill: heroClass.baseWill,
-      gold: heroClass.baseGold,
-      experience: 0,
-      currentTileId: heroClass.startTileId,
-      inventory: [],
-      skills: [],
-      spells: startingSpells,
-      artifacts: [],
-      isAI: cfg.isAI || false,
-    }
-  })
+  const players: Player[] = playerConfigs.map((cfg, index) =>
+    createHero(`p-${index + 1}`, cfg.name, cfg.heroClassId, cfg.isAI || false)
+  )
 
   return {
     players,
@@ -73,10 +39,72 @@ export function createInitialGame(
   }
 }
 
-export function rollDice(): [number, number] {
-  const d1 = Math.floor(Math.random() * 6) + 1
-  const d2 = Math.floor(Math.random() * 6) + 1
-  return [d1, d2]
+export function createHero(id: string, name: string, heroClassId: string, isAI: boolean): Player {
+  const heroClass =
+    HERO_CLASSES.find((h) => h.id === heroClassId) || HERO_CLASSES[0]
+
+  const startingSpells: Spell[] = []
+  if (heroClass.id === 'mage') {
+    const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
+    if (fb) startingSpells.push(fb)
+  } else if (heroClass.id === 'warlock') {
+    const mb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_mind_blast')
+    if (mb) startingSpells.push(mb)
+  } else if (heroClass.id === 'witch') {
+    const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
+    if (fb) startingSpells.push(fb)
+  } else if (heroClass.id === 'druid') {
+    const heal = AVAILABLE_SPELLS.find((s) => s.id === 'spell_heal')
+    if (heal) startingSpells.push(heal)
+  }
+
+  return {
+    id,
+    name,
+    heroClass,
+    currentStrength: heroClass.baseStrength,
+    maxStrength: heroClass.baseStrength,
+    currentWill: heroClass.baseWill,
+    maxWill: heroClass.baseWill,
+    gold: heroClass.baseGold,
+    experience: 0,
+    currentTileId: heroClass.startTileId,
+    inventory: [],
+    skills: [],
+    spells: startingSpells,
+    artifacts: [],
+    isAI,
+  }
+}
+
+/** Kdo drží artefakt které sféry — odvozeno z hráčů, takže se online synchronizuje samo. */
+export function getClaimedSpheres(players: Player[]): Record<SphereElement, string | null> {
+  const claimed: Record<SphereElement, string | null> = { fire: null, ice: null, shadow: null, storm: null, magic: null }
+  for (const sphere of ASTRAL_SPHERES) {
+    const owner = players.find((p) => p.artifacts.some((a) => a.id === sphere.artifact.id))
+    claimed[sphere.id] = owner ? owner.name : null
+  }
+  return claimed
+}
+
+/**
+ * Prohra v boji podle pravidel ALTAR: postava ztratí 1 život. Při síle 0 už další ztráta znamená smrt —
+ * hráč pak pokračuje novou postavou téhož povolání na jejím startovním cechu (−1 život, −2 magy),
+ * zlato, předměty i schopnosti propadnou. Artefakty se vracejí do sfér (deska je nechává ležet na poli).
+ */
+export function applyCombatLoss(player: Player): { player: Player; died: boolean } {
+  if (player.currentStrength > 0) {
+    return { player: { ...player, currentStrength: player.currentStrength - 1 }, died: false }
+  }
+  const fresh = createHero(player.id, player.name, player.heroClass.id, player.isAI || false)
+  return {
+    player: {
+      ...fresh,
+      currentStrength: Math.max(0, fresh.maxStrength - 1),
+      currentWill: Math.max(0, fresh.maxWill - 2),
+    },
+    died: true,
+  }
 }
 
 export interface TacticalMovementOption {
@@ -173,9 +201,18 @@ export function getTacticalMoveOptions(
     unavailableReason: player.gold < 1 ? 'Nemáš 1 zlaťák na koně' : undefined,
   })
 
-  // 3. Ship: Ports (if on port)
+  // 3. Ship: nejbližší přístav nalevo a napravo (pravidla ALTAR, Pohyb d)
   if (currentTile.hasPort) {
-    const ports = BOARD_TILES.filter((t) => t.hasPort && t.id !== currentTile.id)
+    const nearestPort = (dir: 1 | -1) => {
+      for (let step = 1; step < total; step++) {
+        const tile = BOARD_TILES[(currentTile.id + dir * step + total) % total]
+        if (tile.hasPort) return tile
+      }
+      return null
+    }
+    const ports = [nearestPort(1), nearestPort(-1)].filter(
+      (t, i, arr): t is NonNullable<typeof t> => !!t && t.id !== currentTile.id && arr.findIndex((x) => x?.id === t.id) === i
+    )
     for (const port of ports) {
       options.push({
         id: `ship-${port.id}`,
@@ -256,18 +293,6 @@ export function getTacticalMoveOptions(
   return options
 }
 
-export function getPossibleMoves(currentTileId: number, steps: number): number[] {
-  // Legacy fallback for tests
-  const totalTiles = BOARD_TILES.length
-  const clockwise = (currentTileId + steps) % totalTiles
-  const counterClockwise = (currentTileId - steps + totalTiles) % totalTiles
-
-  const results = new Set<number>()
-  results.add(clockwise)
-  results.add(counterClockwise)
-  return Array.from(results)
-}
-
 export function drawCardForTerrain(terrain: string): AdventureCard {
   const matching = ADVENTURE_CARDS.filter((c) => c.terrain === terrain)
   if (matching.length === 0) {
@@ -286,8 +311,10 @@ export function calculatePlayerAttack(
   let equipmentBonus = 0
 
   if (type === 'physical') {
+    // Zbroj a štíty přidávají k síle v boji (deska nezná zvláštní obranu)
     player.inventory.forEach((item) => {
       if (item.strengthBonus) equipmentBonus += item.strengthBonus
+      if (item.defenseBonus) equipmentBonus += item.defenseBonus
     })
     player.artifacts.forEach((art) => {
       equipmentBonus += art.strengthBonus
@@ -318,6 +345,18 @@ export function calculatePlayerDefense(player: Player): number {
     if (item.defenseBonus) defense += item.defenseBonus
   })
   return defense
+}
+
+export type CombatResult = 'win' | 'loss' | 'draw'
+
+/** Jeden hod souboje podle pravidel ALTAR: hrdina i netvor hodí kostkou, vyšší součet vyhrává, rovnost = remíza. */
+export function rollCombat(playerBase: number, enemyBase: number) {
+  const playerRoll = Math.floor(Math.random() * 6) + 1
+  const enemyRoll = Math.floor(Math.random() * 6) + 1
+  const playerTotal = playerBase + playerRoll
+  const enemyTotal = enemyBase + enemyRoll
+  const result: CombatResult = playerTotal > enemyTotal ? 'win' : playerTotal < enemyTotal ? 'loss' : 'draw'
+  return { playerRoll, enemyRoll, playerTotal, enemyTotal, result }
 }
 
 export function startCombatWithMonster(

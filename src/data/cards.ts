@@ -494,7 +494,7 @@ export const SHOP_ITEMS: Item[] = [
     type: 'armor',
     price: 4,
     defenseBonus: 1,
-    description: 'Pevná vyztužená kůže snižující utržená zranění o 1.',
+    description: 'Pevná vyztužená kůže (+1 k síle v boji).',
   },
   {
     id: 'item_chainmail',
@@ -502,7 +502,7 @@ export const SHOP_ITEMS: Item[] = [
     type: 'armor',
     price: 6,
     defenseBonus: 2,
-    description: 'Spolehlivé ocelové kroužky chránící trup (+2 Obrana).',
+    description: 'Spolehlivé ocelové kroužky chránící trup (+2 k síle v boji).',
   },
   {
     id: 'item_plate_armor',
@@ -510,7 +510,7 @@ export const SHOP_ITEMS: Item[] = [
     type: 'armor',
     price: 10,
     defenseBonus: 3,
-    description: 'Masivní těžká zbroj pohlcující 3 body fyzického zranění v každém kole.',
+    description: 'Masivní těžká rytířská zbroj (+3 k síle v boji).',
   },
   {
     id: 'item_shield',
@@ -518,7 +518,7 @@ export const SHOP_ITEMS: Item[] = [
     type: 'shield',
     price: 3,
     defenseBonus: 1,
-    description: 'Spolehlivý štít pro odrážení útoků (+1 Obrana).',
+    description: 'Spolehlivý štít pro odrážení útoků (+1 k síle v boji).',
   },
   {
     id: 'item_tower_shield',
@@ -526,7 +526,7 @@ export const SHOP_ITEMS: Item[] = [
     type: 'shield',
     price: 6,
     defenseBonus: 2,
-    description: 'Masivní obranný štít zakrývající celé tělo (+2 Obrana).',
+    description: 'Masivní obranný štít zakrývající celé tělo (+2 k síle v boji).',
   },
   {
     id: 'item_potion_heal',
@@ -664,8 +664,8 @@ export const AVAILABLE_SPELLS: Spell[] = [
     name: 'Světelný štít',
     willCost: 1,
     combatBonus: 0,
-    description: 'Absorbuje 2 body zranění v probíhajícím kole.',
-    effect: 'Snižuje utrpěné zranění o 2.',
+    description: 'Zářivá bariéra pohltí ránu, která by tě jinak zranila.',
+    effect: 'Prohraný hod skončí remízou (neztratíš život).',
   },
   {
     id: 'spell_mind_blast',

@@ -1,6 +1,6 @@
 import { BOARD_TILES } from '../data/board'
 import { SHOP_ITEMS } from '../data/cards'
-import { calculatePlayerAttack, calculatePlayerDefense } from './gameEngine'
+import { calculatePlayerAttack, CombatResult, getTacticalMoveOptions, rollCombat } from './gameEngine'
 import { BoardTile, Item, Monster, Player, SphereElement } from './types'
 
 export type AIMoveChoice =
@@ -113,13 +113,14 @@ export function decideAIMovement(
     })
   }
 
-  // Ship movement if in port
+  // Ship movement if in port (jen nejbližší přístavy, stejně jako u hráče)
   if (currentTile.hasPort && player.gold >= 1) {
-    const ports = BOARD_TILES.filter((t) => t.hasPort && t.id !== currentTile.id)
+    const ports = getTacticalMoveOptions(player, claimedSpheres).filter((o) => o.type === 'ship')
     for (const port of ports) {
+      const portTile = BOARD_TILES[port.targetTileId]
       options.push({
-        choice: { type: 'ship', targetTileId: port.id, costGold: 1, label: `Cesta lodí do ${port.name}` },
-        score: scoreTileForAI(player, port, claimedSpheres) + 3,
+        choice: { type: 'ship', targetTileId: port.targetTileId, costGold: 1, label: `Cesta lodí do ${portTile.name}` },
+        score: scoreTileForAI(player, portTile, claimedSpheres) + 3,
       })
     }
   }
@@ -233,15 +234,13 @@ export function resolveAICombat(
   monster: Monster,
   isGuardian = false
 ): {
-  playerWon: boolean
+  result: CombatResult
   newStrength: number
   newWill: number
   log: string[]
 } {
-  let pStr = player.currentStrength
+  const pStr = player.currentStrength
   let pWill = player.currentWill
-  let guardianHits = isGuardian ? 2 : 1
-  let won = false
   const log: string[] = []
 
   let combatType: 'physical' | 'mental' = 'physical'
@@ -267,55 +266,19 @@ export function resolveAICombat(
   }
 
   const enemyBase = combatType === 'physical' ? monster.strength : monster.will
-  const defense = calculatePlayerDefense(player)
+  const playerBase = calculatePlayerAttack({ ...player, currentWill: pWill }, combatType, 0).total
 
-  let round = 1
-  while (round <= 15) {
-    const pRoll = Math.floor(Math.random() * 6) + 1
-    const eRoll = Math.floor(Math.random() * 6) + 1
-    const pAttack = calculatePlayerAttack({ ...player, currentStrength: pStr, currentWill: pWill }, combatType, pRoll)
-    const pTotal = pAttack.total
-    const eTotal = enemyBase + eRoll
-
-    if (pTotal > eTotal) {
-      // AI hits
-      if (!isGuardian) {
-        won = true
-        log.push(`Kolo ${round}: 🤖 ${player.name} hodil ${pTotal} vs ${monster.name} ${eTotal} ➔ Netvor padl!`)
-        break
-      } else {
-        guardianHits--
-        log.push(`Kolo ${round}: 🤖 ${player.name} zasáhl Strážce! (Zbývá ${guardianHits} zásah)`)
-        if (guardianHits <= 0) {
-          won = true
-          break
-        }
-      }
-    } else if (eTotal > pTotal) {
-      // AI takes damage
-      if (combatType === 'physical') {
-        const dmg = Math.max(1, eTotal - pTotal - defense)
-        pStr = Math.max(0, pStr - dmg)
-        log.push(`Kolo ${round}: ${monster.name} (${eTotal}) zranil 🤖 ${player.name} (${pTotal}) o ${dmg} HP.`)
-      } else {
-        const dmg = Math.max(1, eTotal - pTotal)
-        pWill = Math.max(0, pWill - dmg)
-        log.push(`Kolo ${round}: ${monster.name} (${eTotal}) ubral 🤖 ${player.name} (${pTotal}) ${dmg} Vůle.`)
-      }
-
-      if (pStr <= 0 || (combatType === 'mental' && pWill <= 0)) {
-        won = false
-        log.push(`💀 🤖 ${player.name} podlehl v boji s ${monster.name}!`)
-        break
-      }
-    } else {
-      log.push(`Kolo ${round}: Vyrovnaný souboj (${pTotal} vs ${eTotal}).`)
-    }
-    round++
+  // Jeden hod rozhoduje; strážce sféry jsou dva (nižší a vyšší) → dvě vítězství po sobě
+  let result: CombatResult = 'draw'
+  for (let fight = 0; fight < (isGuardian ? 2 : 1); fight++) {
+    const roll = rollCombat(playerBase, enemyBase)
+    result = roll.result
+    log.push(`🤖 ${player.name} ${roll.playerTotal} : ${roll.enemyTotal} ${monster.name}`)
+    if (result !== 'win') break
   }
 
   return {
-    playerWon: won,
+    result,
     newStrength: pStr,
     newWill: pWill,
     log,
