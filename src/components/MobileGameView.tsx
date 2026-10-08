@@ -5,6 +5,7 @@ import { ASTRAL_SPHERES } from '../data/spheres'
 import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
 import type { BoardTile, GameState, Item, SphereElement } from '../engine/types'
 import { DiceRoller } from './DiceRoller'
+import { IntroGuideModal } from './IntroGuideModal'
 import { PlayerSheet } from './PlayerSheet'
 
 type MobileTab = 'map' | 'players' | 'log'
@@ -46,6 +47,9 @@ export function MobileGameView({
   const [tab, setTab] = useState<MobileTab>('map')
   const [direction, setDirection] = useState<'cw' | 'ccw'>('cw')
   const [inspectingPlayerId, setInspectingPlayerId] = useState<string | null>(null)
+  const [showIntro, setShowIntro] = useState<boolean>(
+    () => localStorage.getItem('proroctvi_intro_seen') !== 'true'
+  )
   const trackRef = useRef<HTMLDivElement>(null)
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
@@ -81,7 +85,19 @@ export function MobileGameView({
           <div className="mobile-brand">✦ PROROCTVÍ</div>
           <div className="mobile-header-meta">Kolo {game.turnNumber} · {isOnline ? `Místnost ${roomCode}` : 'Hra na jednom zařízení'}</div>
         </div>
-        <button type="button" className="mobile-header-button cursor-pointer" onClick={onLobby}>Lobby</button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="mobile-header-button cursor-pointer flex items-center gap-1 font-semibold"
+            onClick={() => setShowIntro(true)}
+            title="Průvodce hrou a pravidla"
+          >
+            ❓ Průvodce
+          </button>
+          <button type="button" className="mobile-header-button cursor-pointer" onClick={onLobby}>
+            Lobby
+          </button>
+        </div>
       </header>
 
       <div className="mobile-scoreboard" aria-label="Zdroje obou hráčů">
@@ -477,6 +493,15 @@ export function MobileGameView({
         <button type="button" onClick={() => setTab('players')} className={tab === 'players' ? 'is-active cursor-pointer' : 'cursor-pointer'} aria-current={tab === 'players' ? 'page' : undefined}><BookOpen size={21} /> Hrdinové</button>
         <button type="button" onClick={() => setTab('log')} className={tab === 'log' ? 'is-active cursor-pointer' : 'cursor-pointer'} aria-current={tab === 'log' ? 'page' : undefined}><ScrollText size={21} /> Záznam</button>
       </nav>
+
+      {/* Intro / Quick Rules Guide Modal */}
+      <IntroGuideModal
+        isOpen={showIntro}
+        onClose={() => {
+          localStorage.setItem('proroctvi_intro_seen', 'true')
+          setShowIntro(false)
+        }}
+      />
     </div>
   )
 }
