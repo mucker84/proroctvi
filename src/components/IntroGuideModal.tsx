@@ -62,6 +62,33 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
             </div>
           </div>
 
+          {/* Proč na ně vůbec chodit? */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-stone-900 to-amber-950/40 border border-amber-500/40 flex flex-col gap-2">
+            <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
+              <span>❓</span>
+              <span>Proč na ně vůbec chodit?</span>
+            </div>
+            <p className="text-[11px] text-stone-200">
+              Karty dobrodružství jsou <strong>jediný zdroj tvého bohatství a síly</strong>:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-stone-300">
+              <div className="p-2 rounded-xl bg-stone-950/80 border border-red-950/80 flex items-start gap-2">
+                <span className="text-lg shrink-0">👹</span>
+                <div>
+                  <strong className="text-stone-100 block">Netvoři:</strong>
+                  Když je porazíš, získáš <span className="text-amber-400 font-bold">Zlaťáky (🪙)</span> a <span className="text-emerald-400 font-bold">Zkušenosti (⭐)</span>.
+                </div>
+              </div>
+              <div className="p-2 rounded-xl bg-stone-950/80 border border-amber-950/80 flex items-start gap-2">
+                <span className="text-lg shrink-0">💎</span>
+                <div>
+                  <strong className="text-stone-100 block">Poklady a nálezy:</strong>
+                  Okamžitý zisk zlata nebo zkušeností bez boje.
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Jak probíhá tah */}
           <div className="p-3.5 rounded-2xl bg-stone-950/80 border border-stone-800 flex flex-col gap-2">
             <div className="font-bold text-xs text-stone-200 flex items-center gap-1.5">
