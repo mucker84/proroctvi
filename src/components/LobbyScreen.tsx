@@ -13,6 +13,7 @@ interface LobbyScreenProps {
   mySeat: 'p1' | 'p2' | null
   seats: { p1: RoomSeat | null; p2: RoomSeat | null } | null
   initialJoinCode?: string | null
+  onClearJoinCode?: () => void
 }
 
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({
@@ -26,14 +27,19 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   mySeat,
   seats,
   initialJoinCode = '',
+  onClearJoinCode,
 }) => {
-  const [activeTab, setActiveTab] = useState<'ai' | 'online' | 'hotseat'>('ai')
+  const [activeTab, setActiveTab] = useState<'ai' | 'online' | 'hotseat'>(
+    initialJoinCode ? 'online' : 'ai'
+  )
   const [onlineAction, setOnlineAction] = useState<'create' | 'join'>(
     initialJoinCode ? 'join' : 'create'
   )
 
   // Player configurations
-  const [playerName, setPlayerName] = useState(mySeat === 'p2' ? 'Hrdina 2' : 'Hrdina 1')
+  const [playerName, setPlayerName] = useState(
+    initialJoinCode || mySeat === 'p2' ? 'Hrdina 2' : 'Hrdina 1'
+  )
   const [selectedHeroId, setSelectedHeroId] = useState('warrior')
   const [aiHeroId, setAiHeroId] = useState('mage')
   const [inputCode, setInputCode] = useState(initialJoinCode || '')
@@ -57,13 +63,14 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   }
 
   const handleJoin = async () => {
-    if (!inputCode || inputCode.length !== 6) {
+    const code = (initialJoinCode || inputCode || '').trim()
+    if (!code || code.length !== 6) {
       setErrorMsg('Kód místnosti musí mít přesně 6 číslic.')
       return
     }
     setIsLoading(true)
     setErrorMsg(null)
-    const ok = await onJoinOnlineRoom(inputCode, playerName, selectedHeroId)
+    const ok = await onJoinOnlineRoom(code, playerName, selectedHeroId)
     setIsLoading(false)
     if (!ok) {
       setErrorMsg('Místnost neexistuje, vypršela nebo je již plná.')
@@ -223,6 +230,108 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               >
                 Opustit místnost
               </button>
+            </div>
+          </div>
+        ) : initialJoinCode ? (
+          /* Direct Invitation Screen (Opened via shared link ?room=123456) */
+          <div className="w-full bg-stone-900/95 border-2 border-amber-500 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-6 animate-in fade-in duration-200">
+            <div className="text-center border-b border-stone-800 pb-4">
+              <span className="text-xs uppercase font-black text-amber-400 tracking-widest bg-amber-500/20 px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-sm">
+                ✉️ Pozvánka do online hry
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-stone-100 font-serif mt-3 mb-1">
+                Byl jsi pozván do hry Proroctví!
+              </h2>
+              <p className="text-xs text-stone-300">
+                Kód místnosti je automaticky připraven. Vyber si postavu a klepni na tlačítko.
+              </p>
+              <div className="flex items-center justify-center gap-2 mt-3">
+                <span className="text-xs text-stone-400 font-bold uppercase tracking-wider">Místnost:</span>
+                <span className="font-mono text-2xl font-black text-amber-400 bg-stone-950 px-4 py-1.5 rounded-xl border border-stone-800 tracking-widest shadow-inner">
+                  #{initialJoinCode}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {/* Player Name */}
+              <div>
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                  Tvé herní jméno
+                </label>
+                <input
+                  type="text"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  maxLength={20}
+                  className="w-full mt-1.5 p-3.5 bg-stone-950 border border-stone-800 rounded-xl text-sm font-bold text-stone-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Character selection */}
+              <div>
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                  Vyber svou postavu
+                </label>
+                <p className="text-[11px] text-stone-500 mt-0.5">Klepni na hrdinu, za kterého chceš hrát:</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 max-h-64 overflow-y-auto p-1">
+                  {HERO_CLASSES.map((hero) => {
+                    const isSelected = selectedHeroId === hero.id
+                    return (
+                      <button
+                        key={hero.id}
+                        type="button"
+                        onClick={() => setSelectedHeroId(hero.id)}
+                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400 shadow-md'
+                            : 'bg-stone-950 border-stone-800 hover:border-stone-700'
+                        }`}
+                      >
+                        {hero.image ? (
+                          <img
+                            src={hero.image}
+                            alt={hero.name}
+                            className="w-11 h-11 rounded-lg object-cover border border-amber-500/40 shrink-0"
+                          />
+                        ) : (
+                          <span className="text-2xl">{hero.avatar}</span>
+                        )}
+                        <div>
+                          <div className="font-bold text-xs text-stone-200">{hero.name}</div>
+                          <div className="text-[10px] text-stone-400 line-clamp-1">{hero.title}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-300 font-medium">
+                  ⚠️ {errorMsg}
+                </div>
+              )}
+
+              {/* Giant Join Button */}
+              <button
+                type="button"
+                onClick={handleJoin}
+                disabled={isLoading}
+                className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-stone-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-xl cursor-pointer transition-all disabled:opacity-50"
+              >
+                {isLoading ? 'Připojuji do hry...' : `⚔️ Vstoupit do hry (#${initialJoinCode})`}
+              </button>
+
+              {onClearJoinCode && (
+                <button
+                  type="button"
+                  onClick={onClearJoinCode}
+                  className="text-xs text-stone-400 hover:text-stone-200 text-center underline cursor-pointer mt-1"
+                >
+                  Přejít do hlavní nabídky (jiné režimy)
+                </button>
+              )}
             </div>
           </div>
         ) : (

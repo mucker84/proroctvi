@@ -819,6 +819,12 @@ export const App: React.FC = () => {
         mySeat={mySeat}
         seats={roomSeats}
         initialJoinCode={urlJoinCode}
+        onClearJoinCode={() => {
+          setUrlJoinCode(null)
+          if (window.history.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname)
+          }
+        }}
       />
     )
   }

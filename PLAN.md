@@ -86,3 +86,5 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Antigravity · Vizuální Resource Bar (výrazné zlaťáky, expy, HP, mana), Lišta Proroctví (sledování 4 artefaktů ze sfér), barevné pilulky ve scoreboardu a zobrazení jmění u akcí · hotovo
 2026-10-08 · Codex · Mobilní porovnání zdrojů obou hráčů nahradilo duplicitní lišty; akce tahu přesunuty do dosahu, mapa se posouvá jen vodorovně, ověřeno v lokálním hotseat na 360×640, 390×844 a 844×390 · hotovo
 2026-10-08 · Antigravity · Implementace Singleplayeru proti AI botovi (inteligentní rozhodování, trénink, nákupy, sférické souboje), uložení online sezení do localStorage a automatické obnovení partie po reloadu · hotovo
+2026-10-08 · Antigravity · Zjednodušení připojení přes odkaz (přímá dedikovaná pozvánka, předvyplněná místnost a výběr postavy bez bloudění v lobby) · hotovo
+
