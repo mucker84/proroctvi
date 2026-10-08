@@ -2,7 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronRight, Compass, ScrollText, Sparkles, Swords, Users } from 'lucide-react'
 import { BOARD_TILES } from '../data/board'
 import { ASTRAL_SPHERES } from '../data/spheres'
-import { calculatePlayerAttack, calculatePlayerDefense, getTacticalMoveOptions } from '../engine/gameEngine'
+import { calculatePlayerAttack, calculatePlayerDefense, getTacticalMoveOptions, TacticalMovementOption } from '../engine/gameEngine'
+import {
+  canAttackPlayer,
+  getAdventureCard,
+  getChanceCard,
+  getTileServices,
+  GUILD_NAME,
+  MARKET_TILES,
+  monstersOnTile,
+  opportunitiesOnTile,
+  ServiceId,
+  TILE_GUILD,
+} from '../engine/rules'
 import type { BoardTile, GameState, Item, SphereElement } from '../engine/types'
 import { IntroGuideModal } from './IntroGuideModal'
 import { PlayerSheet } from './PlayerSheet'
@@ -17,17 +29,19 @@ interface MobileGameViewProps {
   mySeat: 'p1' | 'p2' | null
   selectedTile: BoardTile
   hasMoved: boolean
-  hasCompletedTileAction: boolean
+  turnOver: boolean
   claimedSpheres: Record<SphereElement, string | null>
-  validMoves: number[]
+  usedServices: ServiceId[]
+  attackedThisTurn: boolean
   onSelectTile: (tile: BoardTile) => void
-  onExecuteMove: (targetTileId: number, costGold: number, moveType: string) => void
-  onWorkAction: (type: 'city_work' | 'guild_work' | 'fortress_training') => void
-  onDrawCard: () => void
-  onOpenShop: () => void
-  onEnterSphere: (sphereId: SphereElement) => void
+  onMove: (option: TacticalMovementOption) => void
+  onOpenCard: (uid: string) => void
+  onPickArtifact: (artifactId: string) => void
+  onService: (id: ServiceId) => void
+  onOpenMarket: () => void
+  onOpenGuild: () => void
+  onAttackPlayer: (playerIndex: number) => void
   onEndTurn: () => void
-  onRest: () => void
   onUseItem: (item: Item) => void
   onLobby: () => void
 }
@@ -39,9 +53,9 @@ const terrainIcon: Record<BoardTile['terrain'], string> = {
 
 export function MobileGameView({
   game, roomCode, isOnline, isMyTurn, mySeat, selectedTile,
-  hasMoved, hasCompletedTileAction, claimedSpheres, validMoves,
-  onSelectTile, onExecuteMove, onWorkAction, onDrawCard,
-  onOpenShop, onEnterSphere, onEndTurn, onRest, onUseItem, onLobby,
+  hasMoved, turnOver, claimedSpheres, usedServices, attackedThisTurn,
+  onSelectTile, onMove, onOpenCard, onPickArtifact, onService,
+  onOpenMarket, onOpenGuild, onAttackPlayer, onEndTurn, onUseItem, onLobby,
 }: MobileGameViewProps) {
   const [tab, setTab] = useState<MobileTab>('map')
   const [inspectingPlayerId, setInspectingPlayerId] = useState<string | null>(null)
@@ -51,20 +65,31 @@ export function MobileGameView({
   const trackRef = useRef<HTMLDivElement>(null)
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId] || BOARD_TILES[0]
-  const canActOnTile = isMyTurn && hasMoved && !hasCompletedTileAction
-  const shopAvailable = ['city', 'training', 'temple', 'camp', 'castle'].includes(currentTile.terrain) || !!currentTile.isGuild
+  const canActOnTile = isMyTurn && hasMoved && !turnOver
   const ownPlayerIndex = isOnline && mySeat === 'p2' ? 1 : 0
   const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
   const inspectingPlayer = game.players.find((player) => player.id === inspectingPlayerId) ?? null
   const latestLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[0] : null
-  const tileMonsters = game.tileMonsters || {}
-  const lyingHere = tileMonsters[currentTile.id]
-  const lyingSelected = tileMonsters[selectedTile.id]
+  const monstersHere = monstersOnTile(game, currentTile.id)
+  const opportunitiesHere = opportunitiesOnTile(game, currentTile.id)
+  const artifactsHere = game.tileArtifacts[currentTile.id] || []
+  const services = canActOnTile ? getTileServices(game, game.activePlayerIndex) : []
+  const guildHere = TILE_GUILD[currentTile.id]
+  const pvpTargets = game.players
+    .map((p, idx) => ({ p, idx, blocked: canAttackPlayer(game, game.activePlayerIndex, idx) }))
+    .filter(({ p, idx }) => idx !== game.activePlayerIndex && p.currentTileId === currentTile.id)
+  const finalBattle = game.finalBattle
+  const mustAttack = !!finalBattle && !attackedThisTurn && pvpTargets.some((t) => !t.blocked)
+  const lastChance = game.lastChance ? { ...game.lastChance, card: getChanceCard(game.lastChance.cardId) } : null
+  const cardsOn = (tileId: number) => game.tileCards[tileId] || []
 
   const moveOptions = getTacticalMoveOptions(activePlayer, claimedSpheres)
+  const validMoves = !hasMoved && isMyTurn
+    ? moveOptions.filter((o) => o.isAvailable && o.type !== 'work' && o.type !== 'enter_sphere').map((o) => o.targetTileId)
+    : []
   const walkOptions = moveOptions.filter((o) => o.type === 'walk' || o.type === 'stay')
   const horseOptions = moveOptions.filter((o) => o.type === 'horse')
-  const travelOptions = moveOptions.filter((o) => o.type === 'ship' || o.type === 'gate')
+  const travelOptions = moveOptions.filter((o) => o.type === 'ship' || o.type === 'gate' || o.type === 'boots')
   const workOptions = moveOptions.filter((o) => o.type === 'work')
   const sphereOptions = moveOptions.filter((o) => o.type === 'enter_sphere')
 
@@ -166,13 +191,29 @@ export function MobileGameView({
               <span>
                 {!isMyTurn
                   ? `ČEKÁ SE NA ${activePlayer.name.toUpperCase()}`
+                  : finalBattle
+                  ? 'ZÁVĚREČNÝ BOJ · MUSÍŠ ZAÚTOČIT'
                   : !hasMoved
                   ? 'KROK 1 / 2 · VOLBA POHYBU (BEZ KOSTEK)'
-                  : !hasCompletedTileAction
-                  ? 'KROK 2 / 2 · AKCE NA POLI'
-                  : '✅ AKCE DOKONČENA · PŘEDÁVÁM TAH'}
+                  : !turnOver
+                  ? 'KROK 2 / 2 · MOŽNOSTI POLE'
+                  : '✅ TAH KONČÍ · PŘEDÁVÁM'}
               </span>
             </div>
+            {lastChance?.card && (
+              <div className="mobile-chance" role="status">
+                <span className="mobile-chance-tag">? KARTA NÁHODY</span>
+                <strong>{lastChance.card.name}</strong>
+                <span className="mobile-chance-by">táhl {lastChance.playerName}</span>
+                <p>{lastChance.detail}</p>
+              </div>
+            )}
+            {finalBattle && (
+              <div className="mobile-final-battle">
+                <strong>⚡ Závěrečný boj na poli #{finalBattle.tileId} {BOARD_TILES[finalBattle.tileId].name}</strong>
+                <p>Všech pět artefaktů je rozebráno. Favorité se nepohybují a v každém tahu musí zaútočit na soupeře. Poražený odevzdá artefakt, vyhrává ten, kdo jich má čtyři.</p>
+              </div>
+            )}
             {!isMyTurn ? (
               <div className="mobile-wait">
                 <Swords size={22} className="shrink-0" />
@@ -188,7 +229,7 @@ export function MobileGameView({
                 <div>
                   <strong className="text-[#fff3d8] font-serif text-base block">Zvol svůj pohyb (Žádné kostky!)</strong>
                   <p className="text-xs text-stone-300 mt-1">
-                    Volíš si sám: Pěšky (zdarma), Kůň (1 zl), Loď (1 zl), Brána (2 zl) nebo akce místo pohybu.
+                    Volíš si sám: Pěšky (zdarma), Kůň (1 💰), Loď (1 💰), Brána (2 💰) nebo činnost místo pohybu. Na cílovém poli tě čekají karty, které tam leží.
                   </p>
                 </div>
 
@@ -203,7 +244,7 @@ export function MobileGameView({
                       <button
                         key={opt.id}
                         type="button"
-                        onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                        onClick={() => onMove(opt)}
                         className="mobile-move-btn is-free"
                       >
                         <div className="mobile-move-btn-header">
@@ -221,7 +262,7 @@ export function MobileGameView({
                 <div className="mobile-move-group">
                   <div className="mobile-move-group-title">
                     <span>🐎 Na koni (o 2 pole)</span>
-                    <span className="text-amber-400 font-bold">1 🪙 zlaťák</span>
+                    <span className="text-amber-400 font-bold">1 💰 zlaťák</span>
                   </div>
                   <div className="mobile-move-grid">
                     {horseOptions.map((opt) => (
@@ -230,12 +271,12 @@ export function MobileGameView({
                         type="button"
                         disabled={!opt.isAvailable}
                         title={opt.unavailableReason}
-                        onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                        onClick={() => onMove(opt)}
                         className="mobile-move-btn is-horse"
                       >
                         <div className="mobile-move-btn-header">
                           <span className="text-base">{opt.icon}</span>
-                          <span className="mobile-move-btn-cost text-amber-400">1 🪙</span>
+                          <span className="mobile-move-btn-cost text-amber-400">1 💰</span>
                         </div>
                         <span className="mobile-move-btn-title">{opt.label}</span>
                         <span className="mobile-move-btn-detail">{opt.detail}</span>
@@ -260,12 +301,12 @@ export function MobileGameView({
                           type="button"
                           disabled={!opt.isAvailable}
                           title={opt.unavailableReason}
-                          onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                          onClick={() => onMove(opt)}
                           className={`mobile-move-btn ${opt.type === 'ship' ? 'is-ship' : 'is-gate'}`}
                         >
                           <div className="mobile-move-btn-header">
                             <span className="text-base">{opt.icon}</span>
-                            <span className="mobile-move-btn-cost text-amber-400">{opt.costGold} 🪙</span>
+                            <span className="mobile-move-btn-cost text-amber-400">{opt.costGold} 💰</span>
                           </div>
                           <span className="mobile-move-btn-title">{opt.label}</span>
                           <span className="mobile-move-btn-detail">{opt.detail}</span>
@@ -287,14 +328,13 @@ export function MobileGameView({
                     </div>
                     <div className="mobile-move-grid">
                       {workOptions.map((opt) => {
-                        const wType = opt.id.replace('work-', '') as 'city_work' | 'guild_work' | 'fortress_training'
                         return (
                           <button
                             key={opt.id}
                             type="button"
                             disabled={!opt.isAvailable}
                             title={opt.unavailableReason}
-                            onClick={() => onWorkAction(wType)}
+                            onClick={() => onMove(opt)}
                             className="mobile-move-btn is-work"
                           >
                             <div className="mobile-move-btn-header">
@@ -326,7 +366,7 @@ export function MobileGameView({
                           type="button"
                           disabled={!opt.isAvailable}
                           title={opt.unavailableReason}
-                          onClick={() => onEnterSphere(opt.sphereId!)}
+                          onClick={() => onMove(opt)}
                           className="mobile-move-btn is-gate"
                         >
                           <div className="mobile-move-btn-header">
@@ -344,14 +384,14 @@ export function MobileGameView({
                   </div>
                 )}
               </div>
-            ) : hasCompletedTileAction ? (
+            ) : turnOver ? (
               <div className="mobile-completed-box animate-in fade-in duration-200">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl shrink-0">✅</span>
+                  <span className="text-3xl shrink-0">⏩</span>
                   <div>
-                    <strong className="text-emerald-300 font-serif text-base">Akce na poli dokončena!</strong>
+                    <strong className="text-emerald-300 font-serif text-base">Tah končí</strong>
                     <p className="text-xs text-stone-300 mt-0.5">
-                      Všechny možnosti pro tento tah byly vyčerpány. Předávám tah soupeři...
+                      Po prohře, remíze, útěku nebo útoku na sféru tah skončí. Předávám tah soupeři...
                     </p>
                   </div>
                 </div>
@@ -367,7 +407,9 @@ export function MobileGameView({
               <div className="mobile-prompt">
                 <strong>Jsi na poli #{currentTile.id}: {currentTile.name}</strong>
                 <p>
-                  Pohyb dokončen. V tomto tahu smíš provést <strong>právě 1 akci</strong> (karta v divočině, návštěva cechu/tržiště nebo odpočinek).
+                  {monstersHere.length
+                    ? 'Na poli číhá nestvůra. Než využiješ cokoli dalšího, musíš ji porazit.'
+                    : 'Možnosti pole smíš využít všechny a v libovolném pořadí. Až budeš hotov, ukonči tah.'}
                 </p>
               </div>
             )}
@@ -375,48 +417,102 @@ export function MobileGameView({
 
           {/* Tile actions */}
           {canActOnTile && (
-            <section className="mobile-actions" aria-label="Akce na aktuálním poli">
+            <section className="mobile-actions" aria-label="Možnosti aktuálního pole">
               <div className="mobile-section-label">
-                AKCE NA POLI <span>ZVOL PRÁVĚ 1 AKCI</span>
+                MOŽNOSTI POLE <span>V LIBOVOLNÉM POŘADÍ</span>
               </div>
-              {shopAvailable && (
-                <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer">
-                  <span className="mobile-action-icon">🏪</span>
-                  <span>
-                    <strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong>
-                    <small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
+              {monstersHere.map((card) => {
+                const adv = getAdventureCard(card.cardId)
+                return (
+                  <button key={card.uid} type="button" onClick={() => onOpenCard(card.uid)} className="mobile-action is-danger cursor-pointer">
+                    <span className="mobile-action-icon">👹</span>
+                    <span>
+                      <strong>Postavit se: {adv.name}</strong>
+                      <small>Povinný boj · Síla {adv.monster!.strength} · Vůle {adv.monster!.will}</small>
+                    </span>
+                    <ChevronRight size={18} />
+                  </button>
+                )
+              })}
+              {monstersHere.length === 0 && (
+                <>
+                  {opportunitiesHere.map((card) => {
+                    const adv = getAdventureCard(card.cardId)
+                    return (
+                      <button key={card.uid} type="button" onClick={() => onOpenCard(card.uid)} className="mobile-action cursor-pointer">
+                        <span className="mobile-action-icon">✨</span>
+                        <span>
+                          <strong>Příležitost: {adv.name}</strong>
+                          <small>+{adv.rewardGold || 0} 💰 · +{adv.rewardExp || 0} ⭐</small>
+                        </span>
+                        <ChevronRight size={18} />
+                      </button>
+                    )
+                  })}
+                  {artifactsHere.map((art) => (
+                    <button key={art.id} type="button" onClick={() => onPickArtifact(art.id)} className="mobile-action cursor-pointer">
+                      <span className="mobile-action-icon">👑</span>
+                      <span>
+                        <strong>Zvednout artefakt: {art.name}</strong>
+                        <small>Leží tu po padlém hrdinovi</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                  ))}
+                  {pvpTargets.map(({ p, idx, blocked }) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={!!blocked || attackedThisTurn}
+                      onClick={() => onAttackPlayer(idx)}
+                      className={`mobile-action cursor-pointer ${mustAttack ? 'is-danger' : ''}`}
+                      title={blocked ?? (attackedThisTurn ? 'Útočit smíš jednou za tah' : '')}
+                    >
+                      <span className="mobile-action-icon">⚔️</span>
+                      <span>
+                        <strong>Napadnout: {p.name}</strong>
+                        <small>{blocked ?? (attackedThisTurn ? 'Už jsi v tomto tahu útočil' : finalBattle ? 'Povinný útok závěrečného boje' : 'Poražený ztratí život, nebo dá předmět')}</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                  ))}
+                  {MARKET_TILES.includes(currentTile.id) && (
+                    <button type="button" onClick={onOpenMarket} className="mobile-action cursor-pointer">
+                      <span className="mobile-action-icon">🏪</span>
+                      <span>
+                        <strong>Tržiště</strong>
+                        <small>{(game.marketGoods[currentTile.id] || []).length} kusů zboží · prodej za polovinu ceny</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                  {guildHere && (
+                    <button type="button" onClick={onOpenGuild} className="mobile-action cursor-pointer">
+                      <span className="mobile-action-icon">🏛️</span>
+                      <span>
+                        <strong>Cech: {GUILD_NAME[guildHere]}</strong>
+                        <small>{(game.guildOffers[currentTile.id] || []).length} nabízené schopnosti · {activePlayer.heroClass.guilds.includes(guildHere) ? 'jsi člen' : 'nečlen platí i zlatem'}</small>
+                      </span>
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                  {services.map((sv) => {
+                    const used = sv.oncePerTurn && usedServices.includes(sv.id)
+                    return (
+                      <button key={sv.id} type="button" disabled={!sv.available || used} onClick={() => onService(sv.id)} className="mobile-action cursor-pointer">
+                        <span className="mobile-action-icon">{sv.id === 'inn' ? '🍺' : sv.id.includes('mana') ? '🔮' : '🌿'}</span>
+                        <span>
+                          <strong>{sv.title}</strong>
+                          <small>{used ? 'V tomto tahu už využito' : sv.detail}</small>
+                        </span>
+                        <ChevronRight size={18} />
+                      </button>
+                    )
+                  })}
+                </>
               )}
-              {currentTile.hasAstralGate && (
-                <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer">
-                  <span className="mobile-action-icon">🌀</span>
-                  <span>
-                    <strong>Vstoupit do astrální sféry</strong>
-                    <small>Vyzvat strážce a získat artefakt</small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              )}
-              <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer">
-                <span className="mobile-action-icon">{lyingHere ? '👹' : '🎴'}</span>
-                <span>
-                  <strong>{lyingHere ? `Postavit se: ${lyingHere.name}` : 'Tahat kartu dobrodružství (1× za tah)'}</strong>
-                  <small>{lyingHere ? 'Neporažený netvor leží na tomto poli' : 'Událost, poklad nebo souboj s netvorem v divočině'}</small>
-                </span>
-                <ChevronRight size={18} />
-              </button>
-              <button type="button" onClick={onRest} className="mobile-action cursor-pointer">
-                <span className="mobile-action-icon">🌿</span>
-                <span>
-                  <strong>Odpočinout si</strong>
-                  <small>Obnovit 1 Sílu nebo 1 Vůli</small>
-                </span>
-                <ChevronRight size={18} />
-              </button>
-              <button type="button" onClick={onEndTurn} className="mobile-end-turn cursor-pointer">
-                Přeskočit akce a předat hru <ChevronRight size={18} />
+              <button type="button" onClick={onEndTurn} disabled={mustAttack || monstersHere.length > 0} className="mobile-end-turn cursor-pointer">
+                {mustAttack ? 'Nejdřív musíš zaútočit' : 'Ukončit tah'} <ChevronRight size={18} />
               </button>
             </section>
           )}
@@ -443,7 +539,7 @@ export function MobileGameView({
                   >
                     <span className="text-sm">{sphereEmoji}</span>
                     <span className="text-[9.5px] font-bold text-stone-200">
-                      {owner ? (isOnline ? (ownerIndex === ownPlayerIndex ? 'Ty' : 'Soupeř') : `Hráč ${ownerIndex + 1}`) : 'Volná'}
+                      {owner ? (isOnline ? (ownerIndex === ownPlayerIndex ? 'Ty' : 'Soupeř') : `Hráč ${ownerIndex + 1}`) : claimedSpheres[sphere.id] ? 'Na poli' : 'Volná'}
                     </span>
                   </div>
                 )
@@ -459,11 +555,14 @@ export function MobileGameView({
               <div>
                 <h1>{currentTile.name}</h1>
                 <p>{currentTile.description}</p>
-                {lyingHere?.monster && (
-                  <div className="mobile-scene-monster">
-                    👹 Číhá tu neporažený <strong>{lyingHere.name}</strong> · Síla {lyingHere.monster.strength} · Vůle {lyingHere.monster.will}
-                  </div>
-                )}
+                {monstersHere.map((card) => {
+                  const adv = getAdventureCard(card.cardId)
+                  return (
+                    <div key={card.uid} className="mobile-scene-monster">
+                      👹 Číhá tu <strong>{adv.name}</strong> · Síla {adv.monster!.strength} · Vůle {adv.monster!.will}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </section>
@@ -487,12 +586,12 @@ export function MobileGameView({
                         if (matching.length > 0) {
                           const chosen = matching.find((m) => m.type === 'walk' || m.type === 'stay') || matching[0]
                           if (chosen.type !== 'work' && chosen.type !== 'enter_sphere') {
-                            onExecuteMove(chosen.targetTileId, chosen.costGold, chosen.type)
+                            onMove(chosen)
                           }
                         }
                       }
                     }}
-                    className={`mobile-tile cursor-pointer ${tileMonsters[tile.id] ? 'has-monster' : ''} ${
+                    className={`mobile-tile cursor-pointer ${monstersOnTile(game, tile.id).length ? 'has-monster' : ''} ${
                       tile.id === activePlayer.currentTileId ? 'is-current' : ''
                     } ${tile.id === selectedTile.id ? 'is-selected' : ''} ${
                       isReachable ? 'is-move' : ''
@@ -504,10 +603,23 @@ export function MobileGameView({
                     <strong>{tile.name}</strong>
                     {tile.hasPort && <span className="text-[10px]" title="Přístav">⛵</span>}
                     {tile.hasMagicGate && <span className="text-[10px]" title="Magická brána">🌀</span>}
-                    {tileMonsters[tile.id] && (
-                      <span className="mobile-tile-monster" title={`Neporažený netvor: ${tileMonsters[tile.id].name}`}>
-                        👹 {tileMonsters[tile.id].name}
-                      </span>
+                    {cardsOn(tile.id).map((card) => {
+                      if (!card.faceUp) return <span key={card.uid} className="mobile-tile-card is-hidden" title="Zakrytá karta dobrodružství">🎴 zakrytá</span>
+                      const adv = getAdventureCard(card.cardId)
+                      return (
+                        <span key={card.uid} className={adv.monster ? 'mobile-tile-monster' : 'mobile-tile-card'} title={adv.name}>
+                          {adv.monster ? '👹' : '✨'} {adv.name}
+                        </span>
+                      )
+                    })}
+                    {(game.tileArtifacts[tile.id] || []).map((art) => (
+                      <span key={art.id} className="mobile-tile-card is-artifact" title={art.name}>👑 {art.name}</span>
+                    ))}
+                    {TILE_GUILD[tile.id] && (game.guildOffers[tile.id] || []).length > 0 && (
+                      <span className="mobile-tile-card" title="Schopnosti k výcviku">🏛️ {(game.guildOffers[tile.id] || []).length}</span>
+                    )}
+                    {MARKET_TILES.includes(tile.id) && (
+                      <span className="mobile-tile-card" title="Zboží na trhu">🏪 {(game.marketGoods[tile.id] || []).length}</span>
                     )}
                     {isReachable && <span className="mobile-tile-go">ZVOLIT ›</span>}
                     {isHere && (
@@ -522,7 +634,13 @@ export function MobileGameView({
                 )
               })}
             </div>
-            {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p>{lyingSelected?.monster && <p className="mobile-tile-detail-monster">👹 Číhá tu neporažený {lyingSelected.name} (Síla {lyingSelected.monster.strength}, Vůle {lyingSelected.monster.will}). Kdo sem vstoupí, musí s ním bojovat.</p>}</div>}
+            {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p>{cardsOn(selectedTile.id).map((card) => {
+              if (!card.faceUp) return <p key={card.uid} className="mobile-tile-detail-card">🎴 Zakrytá karta: odkryje ji, kdo sem vstoupí.</p>
+              const adv = getAdventureCard(card.cardId)
+              return adv.monster
+                ? <p key={card.uid} className="mobile-tile-detail-monster">👹 {adv.name} (Síla {adv.monster.strength}, Vůle {adv.monster.will}). Kdo sem vstoupí, musí s ním bojovat. Kořist: {adv.monster.rewardGold} 💰, {adv.monster.rewardExp} ⭐{card.lootItemId ? ' + předmět' : ''}.</p>
+                : <p key={card.uid} className="mobile-tile-detail-card">✨ Příležitost: {adv.name} (+{adv.rewardGold || 0} 💰, +{adv.rewardExp || 0} ⭐).</p>
+            })}</div>}
           </section>
 
           {/* HERO HUD & INVENTORY SECTION (Always accessible on map!) */}
@@ -550,7 +668,7 @@ export function MobileGameView({
                 <span className="mobile-hud-stat-val text-orange-400">
                   {physAttack.total}{' '}
                   <span className="text-[10px] text-stone-400 font-normal">
-                    (Síla {hudPlayer.currentStrength} + {physAttack.equipmentBonus})
+                    (Síla {hudPlayer.currentStrength} + {physAttack.equipmentBonus + physAttack.skillBonus})
                   </span>
                 </span>
               </div>
@@ -566,7 +684,7 @@ export function MobileGameView({
                 <span className="mobile-hud-stat-val text-indigo-300">
                   {mentalAttack.total}{' '}
                   <span className="text-[10px] text-stone-400 font-normal">
-                    (Vůle {hudPlayer.currentWill} + {mentalAttack.equipmentBonus})
+                    (Vůle {hudPlayer.currentWill} + {mentalAttack.equipmentBonus + mentalAttack.skillBonus})
                   </span>
                 </span>
               </div>

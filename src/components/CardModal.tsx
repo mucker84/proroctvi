@@ -1,17 +1,23 @@
 import { useState } from 'react'
 import { BattleComparison } from './BattleComparison'
-import { AdventureCard, Player } from '../engine/types'
+import { LootLine } from './LootLine'
+import { AdventureCard, BoardTile, Player, TileCard } from '../engine/types'
 
 interface CardModalProps {
   card: AdventureCard
+  tileCard: TileCard
   player?: Player
+  tile: BoardTile
+  /** Nestvůra na poli: boj je povinný, kartu nejde jen zavřít */
+  forced: boolean
   onEngageCombat: (chosenMode: 'physical' | 'mental') => void
   onClaimTreasure: () => void
+  onClose: () => void
   onFlee: () => void
 }
 
-export function CardModal({ card, player, onEngageCombat, onClaimTreasure, onFlee }: CardModalProps) {
-  const [revealed, setRevealed] = useState(false)
+export function CardModal({ card, tileCard, player, tile, forced, onEngageCombat, onClaimTreasure, onClose, onFlee }: CardModalProps) {
+  const [revealed, setRevealed] = useState(!forced)
   const monster = card.monster
   const physicalAllowed = monster?.combatType !== 'mental'
   const mentalAllowed = monster?.combatType !== 'physical'
@@ -33,15 +39,15 @@ export function CardModal({ card, player, onEngageCombat, onClaimTreasure, onFle
           <button className="adventure-back" onClick={() => setRevealed(true)} aria-label="Otočit kartu dobrodružství">
             <span className="adventure-sigil">✦</span>
             <strong>PROROCTVÍ</strong>
-            <span>Karta dobrodružství · {terrainName}</span>
+            <span>Na poli tě čeká nestvůra · {terrainName}</span>
             <em>Otočit kartu</em>
           </button>
         ) : (
           <>
             <div className="battle-scroll">
               <header className="battle-heading">
-                <div><span className="battle-eyebrow">KARTA DOBRODRUŽSTVÍ · {terrainName}</span><h2>{card.name}</h2></div>
-                <span className="battle-heading-icon" aria-hidden="true">{monster ? '⚔' : card.type === 'treasure' ? '✦' : '📜'}</span>
+                <div><span className="battle-eyebrow">{monster ? 'NESTVŮRA' : 'PŘÍLEŽITOST'} · POLE #{tile.id} {tile.name}</span><h2>{card.name}</h2></div>
+                <span className="battle-heading-icon" aria-hidden="true">{monster ? '⚔' : '✦'}</span>
               </header>
               <p className="adventure-description">{card.description}</p>
               {monster && player && (
@@ -82,30 +88,25 @@ export function CardModal({ card, player, onEngageCombat, onClaimTreasure, onFle
                     mode={mode}
                     strength={player.currentStrength}
                     will={effectiveWill}
+                    tile={tile}
                   />
 
                   <p className="battle-hint">
-                    {isBoth
-                      ? mode === 'mental'
-                        ? '🔮 Zlaté pravidlo: Kdo vyvolá Boj vůlí proti inteligentnímu nepříteli, zaplatí předem 2 Vůli. Bojuješ pak kouzly a silou mysli!'
-                        : '⚔ Bojuješ silou: Použiješ své zbraně, zbroje a tělesnou sílu (zdarma).'
-                      : monster.combatType === 'physical'
-                        ? 'Tento nepřítel nemá rozum – bojovat lze pouze silou (zbraně a zbroj).'
-                        : 'Tento nepřítel je beztělesný – bojuje se výhradně silou Vůle a mysli.'}
+                    Rozhodne jeden hod. Prohra = −1 život a konec tahu, remíza = konec tahu. V obou případech nestvůra zůstává na poli.
                   </p>
 
                   {monster.specialAbility && <p className="battle-warning">⚠ {monster.specialAbility}</p>}
-                  <p className="battle-reward">Za vítězství <strong>🪙 +{monster.rewardGold}</strong><strong>✦ +{monster.rewardExp} zkušeností</strong></p>
+                  <LootLine label="Kořist za vítězství" gold={monster.rewardGold} exp={monster.rewardExp} itemId={tileCard.lootItemId} />
                 </>
               )}
               {!monster && (
-                <p className="battle-reward">Odměna {card.rewardGold ? <strong>🪙 +{card.rewardGold}</strong> : null}{card.rewardExp ? <strong>✦ +{card.rewardExp} zkušeností</strong> : null}</p>
+                <LootLine label="Využitím získáš" gold={card.rewardGold || 0} exp={card.rewardExp || 0} />
               )}
             </div>
             <footer className="battle-actions">
               {monster ? (
                 <>
-                  <button className="battle-button-secondary" onClick={onFlee}>Uprchnout</button>
+                  <button className="battle-button-secondary" onClick={onFlee} title="Pravidla útěk neznají; tah skončí a nestvůra zůstane na poli">Utéct (konec tahu)</button>
                   {isBoth ? (
                     mode === 'mental' ? (
                       <button
@@ -133,7 +134,10 @@ export function CardModal({ card, player, onEngageCombat, onClaimTreasure, onFle
                   )}
                 </>
               ) : (
-                <button className="battle-button-primary" onClick={onClaimTreasure}>Přijmout odměnu</button>
+                <>
+                  <button className="battle-button-secondary" onClick={onClose}>Zavřít</button>
+                  <button className="battle-button-primary" onClick={onClaimTreasure}>Využít příležitost</button>
+                </>
               )}
             </footer>
           </>

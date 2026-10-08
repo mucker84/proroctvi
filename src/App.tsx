@@ -4,25 +4,17 @@ import { CardModal } from './components/CardModal'
 import { CombatModal } from './components/CombatModal'
 import { LobbyScreen } from './components/LobbyScreen'
 import { MobileGameView } from './components/MobileGameView'
-import { ShopModal } from './components/ShopModal'
+import { PvpModal } from './components/PvpModal'
+import { GuildModal, MarketModal } from './components/ShopModal'
 import { BOARD_TILES } from './data/board'
 import { HERO_CLASSES } from './data/characters'
 import { ASTRAL_SPHERES } from './data/spheres'
+import { decideAIMovement, resolveAICombat, runAIActions } from './engine/ai'
 import {
-  applyCombatLoss,
   CombatResult,
-  createInitialGame,
-  drawCardForTerrain,
-  getClaimedSpheres,
-  getTacticalMoveOptions,
   startCombatWithMonster,
+  TacticalMovementOption,
 } from './engine/gameEngine'
-import {
-  decideAIMovement,
-  decideAITileAction,
-  pickAIBestItem,
-  resolveAICombat,
-} from './engine/ai'
 import {
   createOnlineRoom,
   joinOnlineRoom,
@@ -32,46 +24,50 @@ import {
   updateOnlineRoomState,
 } from './engine/multiplayer'
 import {
-  AdventureCard,
-  BoardTile,
-  CombatState,
-  GameState,
-  Item,
-  Skill,
-  Spell,
-  SphereElement,
-} from './engine/types'
+  buyGood,
+  claimedSpheresOf,
+  createGame,
+  doWork,
+  endTurn,
+  executeMove,
+  fleeFromMonster,
+  getAdventureCard,
+  learnFromGuild,
+  monstersOnTile,
+  pickUpArtifact,
+  PvpOutcome,
+  resolveGuardianFight,
+  resolveMonsterFight,
+  resolvePvp,
+  sellItem,
+  ServiceId,
+  drinkPotion,
+  takeOpportunity,
+  applyService,
+} from './engine/rules'
+import { BoardTile, CombatState, GameState, SphereElement } from './engine/types'
 
-// Neporažený netvor zůstává ležet na poli (pravidla ALTAR, Prohra/Remíza v boji s nestvůrou)
-const withTileMonster = (
-  tileMonsters: GameState['tileMonsters'],
-  tileId: number,
-  card: AdventureCard | null
-): Record<number, AdventureCard> => {
-  const next = { ...(tileMonsters || {}) }
-  if (card) next[tileId] = card
-  else delete next[tileId]
-  return next
-}
-
-const combatLossLog = (name: string, enemy: string, died: boolean) =>
-  died
-    ? `💀 ${name} zahynul v boji s ${enemy}. Zlato, výbava i artefakty propadly, pokračuje nová postava na startovním cechu.`
-    : `${name} prohrál s ${enemy} a ztratil 1 život.`
+type CombatSource = { kind: 'monster'; uid: string } | { kind: 'guardian'; sphereId: SphereElement }
 
 export const App: React.FC = () => {
   const [appScreen, setAppScreen] = useState<'LOBBY' | 'GAME'>('LOBBY')
-  const [game, setGame] = useState<GameState>(() => createInitialGame())
+  const [game, setGame] = useState<GameState>(() => createGame([
+    { name: 'Hrdina 1', heroClassId: 'warrior' },
+    { name: 'Hrdina 2', heroClassId: 'mage' },
+  ]))
   const [selectedTile, setSelectedTile] = useState<BoardTile>(BOARD_TILES[0])
-  const [validMoves, setValidMoves] = useState<number[]>([])
-  const [showShop, setShowShop] = useState(false)
-  const [drawnCard, setDrawnCard] = useState<AdventureCard | null>(null)
+  const [showMarket, setShowMarket] = useState(false)
+  const [showGuild, setShowGuild] = useState(false)
+  const [openCardUid, setOpenCardUid] = useState<string | null>(null)
   const [activeCombat, setActiveCombat] = useState<CombatState | null>(null)
-  const [combatCard, setCombatCard] = useState<AdventureCard | null>(null)
+  const [combatSource, setCombatSource] = useState<CombatSource | null>(null)
+  const [pvpTarget, setPvpTarget] = useState<number | null>(null)
+  const [pvpOutcome, setPvpOutcome] = useState<PvpOutcome | null>(null)
+  // Stav rozehraného tahu (jen na zařízení hráče na tahu)
   const [hasMoved, setHasMoved] = useState(false)
-  const [hasCompletedTileAction, setHasCompletedTileAction] = useState(false)
-  // Odvozeno z artefaktů hráčů → oba online klienti vidí totéž
-  const claimedSpheres = getClaimedSpheres(game.players)
+  const [turnOver, setTurnOver] = useState(false)
+  const [usedServices, setUsedServices] = useState<ServiceId[]>([])
+  const [attackedThisTurn, setAttackedThisTurn] = useState(false)
 
   // Online Multiplayer State
   const [roomCode, setRoomCode] = useState<string | null>(null)
@@ -97,7 +93,8 @@ export const App: React.FC = () => {
         const { roomCode: savedCode, token: savedToken, seat: savedSeat } = JSON.parse(saved)
         if (savedCode && savedToken) {
           syncOnlineRoom(savedCode, savedToken).then((res) => {
-            if (res.ok) {
+            // Partie uložená starší verzí hry nemá karty na polích; tu už nejde dohrát
+            if (res.ok && (!res.state || res.state.tileCards)) {
               setRoomCode(savedCode)
               setMyToken(savedToken)
               setMySeat(savedSeat || 'p1')
@@ -143,18 +140,26 @@ export const App: React.FC = () => {
     return () => clearInterval(interval)
   }, [roomCode, myToken, appScreen])
 
-  const activePlayer = game.players[game.activePlayerIndex]
+  const activeIdx = game.activePlayerIndex
+  const activePlayer = game.players[activeIdx]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
+  const claimedSpheres = claimedSpheresOf(game)
 
   const isOnline = Boolean(roomCode && mySeat)
   const isMyTurn =
     (!isOnline && !activePlayer.isAI) ||
-    (mySeat === 'p1' && game.activePlayerIndex === 0) ||
-    (mySeat === 'p2' && game.activePlayerIndex === 1)
+    (mySeat === 'p1' && activeIdx === 0) ||
+    (mySeat === 'p2' && activeIdx === 1)
+  // V závěrečném boji se favorité nepohybují
+  const moved = hasMoved || !!game.finalBattle
+  const pendingMonsters = isMyTurn && moved && !turnOver && !activeCombat ? monstersOnTile(game, currentTile.id) : []
+  const shownCardUid = openCardUid ?? pendingMonsters[0]?.uid ?? null
+  const shownCard = shownCardUid ? (game.tileCards[currentTile.id] || []).find((c) => c.uid === shownCardUid) : undefined
 
   // Broadcast state changes in online room
   const pushStateUpdate = async (nextState: GameState) => {
     setGame(nextState)
+    if (nextState.winner && !game.winner) confetti({ particleCount: 200, spread: 100 })
     if (roomCode && myToken) {
       try {
         const res = await updateOnlineRoomState(roomCode, myToken, nextState)
@@ -167,43 +172,48 @@ export const App: React.FC = () => {
     }
   }
 
+  const resetTurnState = () => {
+    setHasMoved(false)
+    setTurnOver(false)
+    setUsedServices([])
+    setAttackedThisTurn(false)
+    setOpenCardUid(null)
+    setShowMarket(false)
+    setShowGuild(false)
+  }
+
   // Lobby Handlers
-  const handleStartHotseat = (p1HeroId: string, p2HeroId: string) => {
-    const p1Hero = HERO_CLASSES.find((h) => h.id === p1HeroId) || HERO_CLASSES[0]
-    const p2Hero = HERO_CLASSES.find((h) => h.id === p2HeroId) || HERO_CLASSES[1]
-
-    const initial = createInitialGame([
-      { name: `Hráč 1 (${p1Hero.name})`, heroClassId: p1HeroId },
-      { name: `Hráč 2 (${p2Hero.name})`, heroClassId: p2HeroId },
-    ])
-
+  const startLocalGame = (initial: GameState) => {
+    resetTurnState()
+    setActiveCombat(null)
     setGame(initial)
     setRoomCode(null)
     setMySeat(null)
     setMyToken(null)
     localStorage.removeItem('proroctvi_online_session')
     setAppScreen('GAME')
+  }
+
+  const handleStartHotseat = (p1HeroId: string, p2HeroId: string) => {
+    const p1Hero = HERO_CLASSES.find((h) => h.id === p1HeroId) || HERO_CLASSES[0]
+    const p2Hero = HERO_CLASSES.find((h) => h.id === p2HeroId) || HERO_CLASSES[1]
+    startLocalGame(createGame([
+      { name: `Hráč 1 (${p1Hero.name})`, heroClassId: p1HeroId },
+      { name: `Hráč 2 (${p2Hero.name})`, heroClassId: p2HeroId },
+    ]))
   }
 
   const handleStartAI = (playerHeroId: string, aiHeroId: string, playerName: string) => {
     const p1Hero = HERO_CLASSES.find((h) => h.id === playerHeroId) || HERO_CLASSES[0]
     const aiHero = HERO_CLASSES.find((h) => h.id === aiHeroId) || HERO_CLASSES[1]
-
-    const initial = createInitialGame([
+    startLocalGame(createGame([
       { name: playerName || `Hráč (${p1Hero.name})`, heroClassId: playerHeroId, isAI: false },
       { name: `🤖 ${aiHero.name} (AI)`, heroClassId: aiHeroId, isAI: true },
-    ])
-
-    setGame(initial)
-    setRoomCode(null)
-    setMySeat(null)
-    setMyToken(null)
-    localStorage.removeItem('proroctvi_online_session')
-    setAppScreen('GAME')
+    ]))
   }
 
   const handleCreateOnlineRoom = async (name: string, heroClassId: string): Promise<string | null> => {
-    const initial = createInitialGame([
+    const initial = createGame([
       { name, heroClassId },
       { name: 'Čeká se na Hráče 2...', heroClassId: 'mage' },
     ])
@@ -246,9 +256,17 @@ export const App: React.FC = () => {
   }
 
   const handleStartOnlineGame = async () => {
-    if (!roomCode || !myToken) return
-    const res = await startOnlineRoomGame(roomCode, myToken, game)
+    if (!roomCode || !myToken || !roomSeats?.p1 || !roomSeats.p2) return
+    // Hru zakládá hostitel až teď, aby měl hráč 2 hrdinu, kterého si v lobby zvolil
+    const fresh = createGame([
+      { name: roomSeats.p1.name, heroClassId: roomSeats.p1.heroClassId },
+      { name: roomSeats.p2.name, heroClassId: roomSeats.p2.heroClassId },
+    ])
+    const res = await startOnlineRoomGame(roomCode, myToken, fresh)
     if (res.ok) {
+      setGame(fresh)
+      if (res.v) stateVersionRef.current = res.v
+      resetTurnState()
       setAppScreen('GAME')
     }
   }
@@ -268,675 +286,124 @@ export const App: React.FC = () => {
       ? 'Opustit online hru? Vrátíš se do lobby a můžeš se připojit k jiné místnosti.'
       : 'Ukončit rozehranou hru a vrátit se do lobby?'
     if (!window.confirm(question)) return
-    setDrawnCard(null)
+    resetTurnState()
     setActiveCombat(null)
-    setCombatCard(null)
-    setShowShop(false)
-    setHasMoved(false)
-    setHasCompletedTileAction(false)
-    setGame(createInitialGame())
+    setCombatSource(null)
+    setPvpTarget(null)
     handleLeaveRoom()
   }
 
-  // Tactical movement (walk, horse, ship, gate, stay)
-  const handleExecuteMove = (targetTileId: number, costGold: number, moveType: string) => {
-    if (!isMyTurn) return
+  // ---------- tah hráče ----------
 
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-
-    if (costGold > 0) {
-      if (currentPlayer.gold < costGold) return
-      currentPlayer.gold -= costGold
-    }
-    currentPlayer.currentTileId = targetTileId
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-
-    const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
-    setHasMoved(true)
-    setHasCompletedTileAction(false)
-    setSelectedTile(targetTile)
-    setValidMoves([])
-
-    let logAction = ''
-    if (moveType === 'horse') {
-      logAction = `${currentPlayer.name} jel na koni na pole #${targetTileId} (${targetTile.name}) (-1 🪙 zl).`
-    } else if (moveType === 'ship') {
-      logAction = `${currentPlayer.name} se přeplavil lodí do přístavu #${targetTileId} (${targetTile.name}) (-1 🪙 zl).`
-    } else if (moveType === 'gate') {
-      logAction = `${currentPlayer.name} prošel magickou bránou na pole #${targetTileId} (${targetTile.name}) (-2 🪙 zl).`
-    } else if (moveType === 'stay') {
-      logAction = `${currentPlayer.name} zůstává na poli #${targetTileId} (${targetTile.name}).`
-    } else {
-      logAction = `${currentPlayer.name} došel pěšky na pole #${targetTileId} (${targetTile.name}).`
-    }
-
-    // Neporažený netvor na cílovém poli napadne příchozího
-    const lyingMonster = game.tileMonsters?.[targetTileId]
-    const log = lyingMonster
-      ? [`👹 Na poli #${targetTileId} číhá neporažený ${lyingMonster.name}!`, logAction, ...game.gameLog.slice(0, 14)]
-      : [logAction, ...game.gameLog.slice(0, 15)]
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      phase: 'TILE_ACTION',
-      gameLog: log,
-    }
-    pushStateUpdate(nextState)
-    if (lyingMonster) setDrawnCard(lyingMonster)
-  }
-
-  // Work or training instead of movement
-  const handleWorkAction = (type: 'city_work' | 'guild_work' | 'fortress_training') => {
-    if (!isMyTurn) return
-
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    let logAction = ''
-
-    if (type === 'city_work') {
-      if (currentPlayer.currentWill < 1) return
-      currentPlayer.currentWill -= 1
-      currentPlayer.gold += 2
-      logAction = `${currentPlayer.name} vykonal odbornou práci ve městě (-1 Vůle, +2 🪙 zl).`
-    } else if (type === 'guild_work') {
-      if (currentPlayer.currentWill < 1) return
-      currentPlayer.currentWill -= 1
-      currentPlayer.gold += 3
-      logAction = `${currentPlayer.name} splnil špinavou práci pro Gildu (-1 Vůle, +3 🪙 zl).`
-    } else if (type === 'fortress_training') {
-      if (currentPlayer.currentStrength <= 1) return
-      currentPlayer.currentStrength -= 1
-      currentPlayer.experience += 2
-      logAction = `${currentPlayer.name} podstoupil tvrdý dril v Pevnosti (-1 Síla, +2 ⭐ exp).`
-    }
-
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    setHasMoved(true)
-    setHasCompletedTileAction(true)
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      phase: 'TILE_ACTION',
-      gameLog: [logAction, ...game.gameLog.slice(0, 15)],
-    }
-    pushStateUpdate(nextState)
-  }
-
-  // Resting action: Heal 1 Strength or 1 Will
-  const handleRest = () => {
-    if (!isMyTurn) return
-
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-
-    let restMessage = ''
-    if (currentPlayer.currentStrength < currentPlayer.maxStrength) {
-      currentPlayer.currentStrength += 1
-      restMessage = '+1 Síla (Život)'
-    } else if (currentPlayer.currentWill < currentPlayer.maxWill) {
-      currentPlayer.currentWill += 1
-      restMessage = '+1 Vůle (Mana)'
-    } else {
-      restMessage = 'hrdina je plně zdráv'
-    }
-
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    setHasCompletedTileAction(true)
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      gameLog: [
-        `${currentPlayer.name} odpočívá na poli #${currentPlayer.currentTileId}: ${restMessage}.`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
-    pushStateUpdate(nextState)
-  }
-
-  // Inspect tile on board click
-  const handleTileClick = (targetTileId: number) => {
-    const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
-    setSelectedTile(targetTile)
-  }
-
-  // Draw adventure card
-  const handleDrawCard = () => {
-    if (!isMyTurn) return
-
-    const lyingMonster = game.tileMonsters?.[currentTile.id]
-    if (lyingMonster) {
-      setDrawnCard(lyingMonster)
+  const handleMove = (option: TacticalMovementOption) => {
+    if (!isMyTurn || moved) return
+    if (option.type === 'enter_sphere' && option.sphereId) {
+      const sphere = ASTRAL_SPHERES.find((s) => s.id === option.sphereId)
+      if (!sphere) return
+      setHasMoved(true)
+      setCombatSource({ kind: 'guardian', sphereId: sphere.id })
+      setActiveCombat(startCombatWithMonster(sphere.guardian, true, sphere.guardian.combatType === 'mental' ? 'mental' : 'physical', false))
       return
     }
-
-    const terrain = currentTile.terrain
-    const cardTerrain =
-      terrain === 'forest' || terrain === 'mountain' || terrain === 'plains' || terrain === 'water'
-        ? terrain
-        : 'forest'
-
-    const card = drawCardForTerrain(cardTerrain)
-    setDrawnCard(card)
+    const workType = option.id.replace('work-', '') as 'city_work' | 'guild_work' | 'fortress_training'
+    const next = option.type === 'work' ? doWork(game, activeIdx, workType) : executeMove(game, activeIdx, option)
+    if (next === game) return
+    setHasMoved(true)
+    setSelectedTile(BOARD_TILES[next.players[activeIdx].currentTileId])
+    pushStateUpdate(next)
   }
 
-  // Engage combat
-  const handleEngageCombat = (chosenMode: 'physical' | 'mental' = 'physical') => {
-    if (!drawnCard || !drawnCard.monster || !isMyTurn) return
-    const monster = drawnCard.monster
-    const isBoth = monster.combatType === 'both'
-    const payingWill = chosenMode === 'mental' && isBoth
-
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-
+  const handleEngageCombat = (chosenMode: 'physical' | 'mental') => {
+    const card = shownCard && getAdventureCard(shownCard.cardId)
+    if (!shownCard || !card?.monster || !isMyTurn) return
+    const payingWill = chosenMode === 'mental' && card.monster.combatType === 'both'
     if (payingWill) {
-      if (currentPlayer.currentWill < 2) return
-      currentPlayer.currentWill -= 2
-      updatedPlayers[game.activePlayerIndex] = currentPlayer
+      if (activePlayer.currentWill < 2) return
+      pushStateUpdate({
+        ...game,
+        players: game.players.map((p, i) => (i === activeIdx ? { ...p, currentWill: p.currentWill - 2 } : p)),
+      })
     }
-
-    const combat = startCombatWithMonster(monster, false, chosenMode, payingWill)
-
-    const nextLog = payingWill
-      ? [
-          `${currentPlayer.name} zaplatil 2 Vůli a vyvolal boj vůlí proti ${monster.name}!`,
-          ...game.gameLog.slice(0, 15),
-        ]
-      : game.gameLog
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      gameLog: nextLog,
-    }
-    pushStateUpdate(nextState)
-
-    setActiveCombat(combat)
-    setCombatCard(drawnCard)
-    setDrawnCard(null)
+    setCombatSource({ kind: 'monster', uid: shownCard.uid })
+    setActiveCombat(startCombatWithMonster(card.monster, false, chosenMode, payingWill))
+    setOpenCardUid(null)
   }
 
-  // Enter astral sphere
-  const handleEnterSphere = (sphereId: SphereElement) => {
-    if (!isMyTurn) return
-    const sphere = ASTRAL_SPHERES.find((s) => s.id === sphereId)
-    if (!sphere) return
-
-    if (claimedSpheres[sphereId]) {
-      alert(`Tento artefakt již získal ${claimedSpheres[sphereId]}!`)
-      return
-    }
-
-    const initialMode: 'physical' | 'mental' = sphere.guardian.combatType === 'mental' ? 'mental' : 'physical'
-    const combat = startCombatWithMonster(sphere.guardian, true, initialMode, false)
-    setActiveCombat(combat)
-    setCombatCard(null)
-  }
-
-  // Resolve combat end
   const handleCombatEnd = (result: CombatResult) => {
-    if (!activeCombat) return
-
-    const updatedPlayers = [...game.players]
-    let currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    const battleTileId = currentPlayer.currentTileId
-    const playerWon = result === 'win'
-    const tileMonsters = combatCard
-      ? withTileMonster(game.tileMonsters, battleTileId, playerWon ? null : combatCard)
-      : game.tileMonsters
-    let outcomeLog = ''
-
-    if (playerWon) {
-      currentPlayer.gold += activeCombat.enemy.rewardGold
-      currentPlayer.experience += activeCombat.enemy.rewardExp
-      outcomeLog = `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
-
-      if (activeCombat.isSphereGuardian) {
-        const sphere = ASTRAL_SPHERES.find((s) => s.guardian.id === activeCombat.enemy.id)
-        if (sphere && !currentPlayer.artifacts.some((a) => a.id === sphere.artifact.id)) {
-          currentPlayer.artifacts = [...currentPlayer.artifacts, sphere.artifact]
-          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
-        }
-      }
-    } else if (result === 'loss') {
-      const loss = applyCombatLoss(currentPlayer)
-      currentPlayer = loss.player
-      outcomeLog = combatLossLog(currentPlayer.name, activeCombat.enemy.name, loss.died)
-    } else {
-      outcomeLog = `${currentPlayer.name} remizoval s ${activeCombat.enemy.name}, tah končí.`
-    }
-    if (!playerWon && combatCard) outcomeLog += ` ${activeCombat.enemy.name} dál číhá na poli #${battleTileId}.`
-
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-
-    let winner = game.winner
-    if (currentPlayer.artifacts.length >= 4) {
-      winner = currentPlayer
-      confetti({ particleCount: 200, spread: 100 })
-    }
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      winner,
-      tileMonsters,
-      gameLog: [outcomeLog, ...game.gameLog.slice(0, 15)],
-    }
-
+    if (!combatSource) return
+    const next = combatSource.kind === 'monster'
+      ? resolveMonsterFight(game, activeIdx, combatSource.uid, result)
+      : resolveGuardianFight(game, activeIdx, combatSource.sphereId, result)
+    if (combatSource.kind === 'guardian' && result === 'win') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
+    // Prohra i remíza tah ukončí; útok na sféru je činnost místo pohybu a tah po něm končí také
+    if (result !== 'win' || combatSource.kind === 'guardian') setTurnOver(true)
     setActiveCombat(null)
-    setCombatCard(null)
-    setHasCompletedTileAction(true)
-    pushStateUpdate(nextState)
+    setCombatSource(null)
+    pushStateUpdate(next)
   }
 
-  // Handle fleeing during combat
-  const handleFleeCombat = () => {
-    if (!activeCombat) return
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      tileMonsters: combatCard
-        ? withTileMonster(game.tileMonsters, currentPlayer.currentTileId, combatCard)
-        : game.tileMonsters,
-      gameLog: [
-        `${currentPlayer.name} včas uprchl ze souboje s ${activeCombat.enemy.name} a zachránil si život.${
-          combatCard ? ` Netvor dál číhá na poli #${currentPlayer.currentTileId}.` : ''
-        }`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
+  const handleFlee = () => {
+    const uid = combatSource?.kind === 'monster' ? combatSource.uid : shownCard?.uid
+    const next = uid ? fleeFromMonster(game, activeIdx, uid) : game
     setActiveCombat(null)
-    setCombatCard(null)
-    setHasCompletedTileAction(true)
-    pushStateUpdate(nextState)
+    setCombatSource(null)
+    setOpenCardUid(null)
+    setTurnOver(true)
+    pushStateUpdate(next)
   }
 
-  // Claim treasure card
-  const handleClaimTreasure = () => {
-    if (!drawnCard || !isMyTurn) return
-
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-
-    if (drawnCard.rewardGold) currentPlayer.gold += drawnCard.rewardGold
-    if (drawnCard.rewardExp) currentPlayer.experience += drawnCard.rewardExp
-
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      gameLog: [
-        `${currentPlayer.name} získal poklad: +${drawnCard.rewardGold || 0} zlaťáků, +${
-          drawnCard.rewardExp || 0
-        } exp.`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
-
-    setDrawnCard(null)
-    setHasCompletedTileAction(true)
-    pushStateUpdate(nextState)
+  const handleService = (id: ServiceId) => {
+    const next = applyService(game, activeIdx, id)
+    if (next === game) return
+    setUsedServices((u) => [...u, id])
+    pushStateUpdate(next)
   }
 
-  // Item & Training Shop actions
-  const handleBuyItem = (item: Item) => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    if (currentPlayer.gold >= item.price) {
-      currentPlayer.gold -= item.price
-      currentPlayer.inventory.push(item)
-    }
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
+  const handlePvp = (mode: 'physical' | 'mental') => {
+    if (pvpTarget === null) return
+    const { state, outcome } = resolvePvp(game, activeIdx, pvpTarget, mode)
+    if (!outcome) return
+    setAttackedThisTurn(true)
+    setPvpOutcome(outcome)
+    pushStateUpdate(state)
   }
 
-  const handleLearnSkill = (skill: Skill) => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    if (currentPlayer.experience >= skill.costExp) {
-      currentPlayer.experience -= skill.costExp
-      currentPlayer.skills.push(skill)
-    }
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
-  }
-
-  const handleLearnSpell = (spell: Spell) => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    if (
-      currentPlayer.experience >= 3 &&
-      !currentPlayer.spells.some((s) => s.id === spell.id)
-    ) {
-      currentPlayer.experience -= 3
-      currentPlayer.spells.push(spell)
-    }
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
-  }
-
-  const handleTrainStat = (stat: 'strength' | 'will') => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    if (currentPlayer.experience >= 4) {
-      currentPlayer.experience -= 4
-      if (stat === 'strength') {
-        currentPlayer.maxStrength += 1
-        currentPlayer.currentStrength += 1
-      } else {
-        currentPlayer.maxWill += 1
-        currentPlayer.currentWill += 1
-      }
-    }
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
-  }
-
-  const handleHeal = () => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    if (currentPlayer.gold >= 2) {
-      currentPlayer.gold -= 2
-      currentPlayer.currentStrength = currentPlayer.maxStrength
-      currentPlayer.currentWill = currentPlayer.maxWill
-    }
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
-  }
-
-  const handleUseItem = (item: Item) => {
-    const updatedPlayers = [...game.players]
-    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
-    let effectDesc = ''
-
-    if (item.effect === 'heal_3_str') {
-      currentPlayer.currentStrength = Math.min(
-        currentPlayer.maxStrength,
-        currentPlayer.currentStrength + 3
-      )
-      effectDesc = '+3 Síla (životy)'
-    } else if (item.effect === 'heal_3_will') {
-      currentPlayer.currentWill = Math.min(
-        currentPlayer.maxWill,
-        currentPlayer.currentWill + 3
-      )
-      effectDesc = '+3 Vůle (mana)'
-    } else if (item.effect === 'heal_full') {
-      currentPlayer.currentStrength = currentPlayer.maxStrength
-      currentPlayer.currentWill = currentPlayer.maxWill
-      effectDesc = 'plná obnova Síly i Vůle'
-    }
-
-    currentPlayer.inventory = currentPlayer.inventory.filter((i) => i.id !== item.id)
-    updatedPlayers[game.activePlayerIndex] = currentPlayer
-
-    const nextState: GameState = {
-      ...game,
-      players: updatedPlayers,
-      gameLog: [
-        `${currentPlayer.name} použil ${item.name} (${effectDesc}).`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
-    pushStateUpdate(nextState)
-  }
-
-  // End turn
   const handleEndTurn = () => {
     if (!isMyTurn && !activePlayer.isAI) return
-
-    setHasMoved(false)
-    setHasCompletedTileAction(false)
-    setValidMoves([])
-    setDrawnCard(null)
-
-    const nextPlayerIndex = (game.activePlayerIndex + 1) % game.players.length
-    const nextTurnNumber = nextPlayerIndex === 0 ? game.turnNumber + 1 : game.turnNumber
-
-    const nextState: GameState = {
-      ...game,
-      activePlayerIndex: nextPlayerIndex,
-      turnNumber: nextTurnNumber,
-      phase: 'START',
-      gameLog: [
-        `Tah ukončen. Nyní hraje ${game.players[nextPlayerIndex].name}.`,
-        ...game.gameLog.slice(0, 15),
-      ],
-    }
-
-    pushStateUpdate(nextState)
+    resetTurnState()
+    pushStateUpdate(endTurn(game))
   }
 
-  // AI Turn Automator State Machine
+  // ---------- tah bota ----------
+
   useEffect(() => {
-    if (appScreen !== 'GAME' || !activePlayer.isAI || game.winner) return
-
-    let isMounted = true
-
-    // Step 1: AI tactical movement choice (no dice)
-    if (!hasMoved) {
-      const timer = setTimeout(() => {
-        if (!isMounted) return
-        const choice = decideAIMovement(activePlayer, claimedSpheres)
-        const updatedPlayers = [...game.players]
-        const bot = { ...updatedPlayers[game.activePlayerIndex] }
-
-        if (choice.type === 'enter_sphere') {
-          handleEnterSphere(choice.sphereId)
-          setHasMoved(true)
-          return
-        }
-
-        if (choice.type === 'work') {
-          handleWorkAction(choice.workType)
-          return
-        }
-
-        const cost = 'costGold' in choice ? choice.costGold : 0
-        if (cost > 0) {
-          bot.gold = Math.max(0, bot.gold - cost)
-        }
-        bot.currentTileId = choice.targetTileId
-        updatedPlayers[game.activePlayerIndex] = bot
-
-        const targetTile = BOARD_TILES.find((t) => t.id === choice.targetTileId) || BOARD_TILES[0]
-        setHasMoved(true)
-        setHasCompletedTileAction(false)
-        setSelectedTile(targetTile)
-
-        const nextState: GameState = {
-          ...game,
-          players: updatedPlayers,
-          phase: 'TILE_ACTION',
-          gameLog: [
-            `🤖 ${bot.name}: ${choice.label}.`,
-            ...game.gameLog.slice(0, 15),
-          ],
-        }
-        pushStateUpdate(nextState)
-      }, 1000)
-
-      return () => {
-        isMounted = false
-        clearTimeout(timer)
-      }
-    }
-
-    // Step 2: AI executes action on current tile
-    if (hasMoved && !hasCompletedTileAction) {
-      const timer = setTimeout(() => {
-        if (!isMounted) return
-        // Neporažený netvor na poli napadne i bota, než udělá cokoli jiného
-        const lyingMonster = game.tileMonsters?.[currentTile.id]
-        const action = lyingMonster ? 'draw_card' : decideAITileAction(activePlayer, currentTile, claimedSpheres)
-        const updatedPlayers = [...game.players]
-        let bot = { ...updatedPlayers[game.activePlayerIndex] }
-        let logMsg = ''
-        let tileMonsters = game.tileMonsters
-
-        if (action === 'heal') {
-          bot.gold = Math.max(0, bot.gold - 2)
-          bot.currentStrength = bot.maxStrength
-          bot.currentWill = bot.maxWill
-          logMsg = `🤖 ${bot.name} se nechal v chrámu plně ošetřit (-2 zl).`
-        } else if (action === 'train_str') {
-          bot.experience -= 4
-          bot.maxStrength += 1
-          bot.currentStrength += 1
-          logMsg = `🤖 ${bot.name} trénoval na cvičišti (+1 Max Síla).`
-        } else if (action === 'train_will') {
-          bot.experience -= 4
-          bot.maxWill += 1
-          bot.currentWill += 1
-          logMsg = `🤖 ${bot.name} meditoval v chrámu (+1 Max Vůle).`
-        } else if (action === 'buy_item') {
-          const item = pickAIBestItem(bot)
-          if (item) {
-            bot.gold -= item.price
-            bot.inventory.push(item)
-            logMsg = `🤖 ${bot.name} koupil na tržišti ${item.name} (-${item.price} zl).`
-          }
-        } else if (action === 'enter_sphere') {
-          const sphere = ASTRAL_SPHERES.find((s) => s.id === currentTile.hasAstralGate)
-          if (sphere) {
-            const combatRes = resolveAICombat(bot, sphere.guardian, true)
-            bot.currentStrength = combatRes.newStrength
-            bot.currentWill = combatRes.newWill
-
-            if (combatRes.result === 'win') {
-              bot.gold += sphere.guardian.rewardGold
-              bot.experience += sphere.guardian.rewardExp
-              bot.artifacts = [...bot.artifacts, sphere.artifact]
-              logMsg = `🏆 🤖 ${bot.name} porazil Strážce a získal ${sphere.artifact.name}!`
-            } else if (combatRes.result === 'loss') {
-              const loss = applyCombatLoss(bot)
-              bot = loss.player
-              logMsg = `🤖 ${combatLossLog(bot.name, sphere.guardian.name, loss.died)}`
-            } else {
-              logMsg = `🤖 ${bot.name} remizoval se Strážcem sféry.`
-            }
-          }
-        } else if (action === 'rest') {
-          if (bot.currentStrength < bot.maxStrength) {
-            bot.currentStrength += 1
-            logMsg = `🤖 ${bot.name} odpočívá v táboře (+1 Síla).`
-          } else {
-            bot.currentWill = Math.min(bot.maxWill, bot.currentWill + 1)
-            logMsg = `🤖 ${bot.name} odpočívá v táboře (+1 Vůle).`
-          }
-        } else if (action === 'draw_card') {
-          const terrain =
-            currentTile.terrain === 'forest' ||
-            currentTile.terrain === 'mountain' ||
-            currentTile.terrain === 'plains' ||
-            currentTile.terrain === 'water'
-              ? currentTile.terrain
-              : 'forest'
-          const card = lyingMonster || drawCardForTerrain(terrain)
-
-          if (card.type === 'treasure') {
-            bot.gold += card.rewardGold || 0
-            bot.experience += card.rewardExp || 0
-            logMsg = `🤖 ${bot.name} našel poklad: ${card.name} (+${card.rewardGold || 0} zl, +${card.rewardExp || 0} exp).`
-          } else if (card.monster) {
-            const combatRes = resolveAICombat(bot, card.monster, false)
-            bot.currentStrength = combatRes.newStrength
-            bot.currentWill = combatRes.newWill
-
-            tileMonsters = withTileMonster(game.tileMonsters, currentTile.id, combatRes.result === 'win' ? null : card)
-            if (combatRes.result === 'win') {
-              bot.gold += card.monster.rewardGold
-              bot.experience += card.monster.rewardExp
-              logMsg = `🤖 ${bot.name} v boji porazil ${card.monster.name} (+${card.monster.rewardGold} zl, +${card.monster.rewardExp} exp).`
-            } else {
-              if (combatRes.result === 'loss') {
-                const loss = applyCombatLoss(bot)
-                bot = loss.player
-                logMsg = `🤖 ${combatLossLog(bot.name, card.monster.name, loss.died)}`
-              } else {
-                logMsg = `🤖 ${bot.name} remizoval s ${card.monster.name}.`
-              }
-              logMsg += ` Netvor dál číhá na poli #${currentTile.id}.`
-            }
-          }
-        }
-
-        updatedPlayers[game.activePlayerIndex] = bot
-        setHasCompletedTileAction(true)
-
-        let winner = game.winner
-        if (bot.artifacts.length >= 4) {
-          winner = bot
-        }
-
-        const nextState: GameState = {
-          ...game,
-          players: updatedPlayers,
-          winner,
-          tileMonsters,
-          gameLog: logMsg ? [logMsg, ...game.gameLog.slice(0, 15)] : game.gameLog,
-        }
-        pushStateUpdate(nextState)
-      }, 1200)
-
-      return () => {
-        isMounted = false
-        clearTimeout(timer)
-      }
-    }
-
-    // Step 3: AI ends turn
-    if (hasCompletedTileAction) {
-      const timer = setTimeout(() => {
-        if (!isMounted) return
-        handleEndTurn()
-      }, 1000)
-
-      return () => {
-        isMounted = false
-        clearTimeout(timer)
-      }
-    }
-  }, [
-    appScreen,
-    activePlayer,
-    hasMoved,
-    hasCompletedTileAction,
-    game.winner,
-    game.activePlayerIndex,
-    claimedSpheres,
-    currentTile,
-  ])
-
-  // Step 4: Human player auto-end turn when all tile actions are completed
-  useEffect(() => {
-    if (appScreen !== 'GAME' || activePlayer.isAI || !isMyTurn || game.winner) return
-    if (!hasCompletedTileAction) return
-
-    let isMounted = true
+    if (appScreen !== 'GAME' || !activePlayer.isAI || game.winner || isOnline) return
     const timer = setTimeout(() => {
-      if (!isMounted) return
-      handleEndTurn()
-    }, 1500)
+      let s = game
+      const choice = decideAIMovement(s, activeIdx)
+      if (choice.type === 'enter_sphere' && choice.sphereId) {
+        const sphere = ASTRAL_SPHERES.find((sp) => sp.id === choice.sphereId)!
+        const fight = resolveAICombat(activePlayer, sphere.guardian, true, { tile: currentTile })
+        s = { ...s, players: s.players.map((p, i) => (i === activeIdx ? { ...p, currentWill: fight.newWill } : p)) }
+        s = resolveGuardianFight(s, activeIdx, sphere.id, fight.result)
+      } else {
+        const workType = choice.id.replace('work-', '') as 'city_work' | 'guild_work' | 'fortress_training'
+        s = choice.type === 'work' ? doWork(s, activeIdx, workType) : executeMove(s, activeIdx, choice)
+        s = runAIActions(s, activeIdx)
+      }
+      pushStateUpdate(s.winner ? s : endTurn(s))
+    }, 1400)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appScreen, game.activePlayerIndex, game.turnNumber, game.extraTurnFor, activePlayer.isAI, game.winner])
 
-    return () => {
-      isMounted = false
-      clearTimeout(timer)
-    }
-  }, [
-    appScreen,
-    activePlayer.isAI,
-    isMyTurn,
-    game.winner,
-    hasCompletedTileAction,
-    game.activePlayerIndex,
-  ])
+  // Po prohře, remíze, útěku nebo útoku na sféru se tah předá sám
+  useEffect(() => {
+    if (appScreen !== 'GAME' || activePlayer.isAI || !isMyTurn || game.winner || !turnOver) return
+    const timer = setTimeout(handleEndTurn, 1500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appScreen, activePlayer.isAI, isMyTurn, game.winner, turnOver, game.activePlayerIndex])
 
   // If user is on Lobby Screen, render LobbyScreen
   if (appScreen === 'LOBBY') {
@@ -962,12 +429,7 @@ export const App: React.FC = () => {
     )
   }
 
-  const currentValidMoves =
-    !hasMoved && isMyTurn
-      ? getTacticalMoveOptions(activePlayer, claimedSpheres)
-          .filter((o) => o.isAvailable && o.type !== 'work' && o.type !== 'enter_sphere')
-          .map((o) => o.targetTileId)
-      : []
+  const shownAdventure = shownCard ? getAdventureCard(shownCard.cardId) : null
 
   return (
     <>
@@ -978,43 +440,40 @@ export const App: React.FC = () => {
         isMyTurn={isMyTurn}
         mySeat={mySeat}
         selectedTile={selectedTile}
-        hasMoved={hasMoved}
-        hasCompletedTileAction={hasCompletedTileAction}
+        hasMoved={moved}
+        turnOver={turnOver}
         claimedSpheres={claimedSpheres}
-        validMoves={currentValidMoves}
+        usedServices={usedServices}
+        attackedThisTurn={attackedThisTurn}
         onSelectTile={setSelectedTile}
-        onExecuteMove={handleExecuteMove}
-        onWorkAction={handleWorkAction}
-        onDrawCard={handleDrawCard}
-        onOpenShop={() => setShowShop(true)}
-        onEnterSphere={handleEnterSphere}
+        onMove={handleMove}
+        onOpenCard={setOpenCardUid}
+        onPickArtifact={(id) => pushStateUpdate(pickUpArtifact(game, activeIdx, id))}
+        onService={handleService}
+        onOpenMarket={() => setShowMarket(true)}
+        onOpenGuild={() => setShowGuild(true)}
+        onAttackPlayer={(idx) => { setPvpOutcome(null); setPvpTarget(idx) }}
         onEndTurn={handleEndTurn}
-        onRest={handleRest}
-        onUseItem={handleUseItem}
+        onUseItem={(item) => pushStateUpdate(drinkPotion(game, activeIdx, item.id))}
         onLobby={handleQuitGame}
       />
 
       {/* Modals */}
-      {drawnCard && (
+      {shownCard && shownAdventure && !activeCombat && (
         <CardModal
-          card={drawnCard}
+          key={shownCard.uid}
+          card={shownAdventure}
+          tileCard={shownCard}
           player={activePlayer}
+          tile={currentTile}
+          forced={!openCardUid}
           onEngageCombat={handleEngageCombat}
-          onClaimTreasure={handleClaimTreasure}
-          onFlee={() => {
-            if (drawnCard.monster) {
-              pushStateUpdate({
-                ...game,
-                tileMonsters: withTileMonster(game.tileMonsters, activePlayer.currentTileId, drawnCard),
-                gameLog: [
-                  `${activePlayer.name} utekl před ${drawnCard.monster.name}. Netvor dál číhá na poli #${activePlayer.currentTileId}.`,
-                  ...game.gameLog.slice(0, 15),
-                ],
-              })
-            }
-            setDrawnCard(null)
-            setHasCompletedTileAction(true)
+          onClaimTreasure={() => {
+            setOpenCardUid(null)
+            pushStateUpdate(takeOpportunity(game, activeIdx, shownCard.uid))
           }}
+          onClose={() => setOpenCardUid(null)}
+          onFlee={handleFlee}
         />
       )}
 
@@ -1022,36 +481,46 @@ export const App: React.FC = () => {
         <CombatModal
           player={activePlayer}
           combat={activeCombat}
+          tile={currentTile}
+          lootItemId={combatSource?.kind === 'monster' ? (game.tileCards[currentTile.id] || []).find((c) => c.uid === combatSource.uid)?.lootItemId : undefined}
           onCombatEnd={handleCombatEnd}
-          onFleeCombat={handleFleeCombat}
+          onFleeCombat={handleFlee}
           onUpdatePlayerStats={(str, will) => {
-            const updatedPlayers = [...game.players]
-            updatedPlayers[game.activePlayerIndex] = {
-              ...updatedPlayers[game.activePlayerIndex],
-              currentStrength: str,
-              currentWill: will,
-            }
-            pushStateUpdate({ ...game, players: updatedPlayers })
+            pushStateUpdate({
+              ...game,
+              players: game.players.map((p, i) => (i === activeIdx ? { ...p, currentStrength: str, currentWill: will } : p)),
+            })
           }}
         />
       )}
 
-      {showShop && (
-        <ShopModal
+      {pvpTarget !== null && (
+        <PvpModal
+          attacker={activePlayer}
+          defender={game.players[pvpTarget]}
+          finalBattle={!!game.finalBattle}
+          outcome={pvpOutcome}
+          onAttack={handlePvp}
+          onClose={() => { setPvpTarget(null); setPvpOutcome(null) }}
+        />
+      )}
+
+      {showMarket && (
+        <MarketModal
+          game={game}
           player={activePlayer}
-          tileTerrain={currentTile.terrain}
-          onBuyItem={handleBuyItem}
-          onLearnSkill={handleLearnSkill}
-          onLearnSpell={handleLearnSpell}
-          onTrainStat={handleTrainStat}
-          onHeal={handleHeal}
-          onFinishTurn={() => {
-            setShowShop(false)
-            setHasCompletedTileAction(true)
-          }}
-          onClose={() => {
-            setShowShop(false)
-          }}
+          onBuy={(id) => pushStateUpdate(buyGood(game, activeIdx, id))}
+          onSell={(id) => pushStateUpdate(sellItem(game, activeIdx, id))}
+          onClose={() => setShowMarket(false)}
+        />
+      )}
+
+      {showGuild && (
+        <GuildModal
+          game={game}
+          player={activePlayer}
+          onLearn={(id) => pushStateUpdate(learnFromGuild(game, activeIdx, id))}
+          onClose={() => setShowGuild(false)}
         />
       )}
 
@@ -1064,8 +533,8 @@ export const App: React.FC = () => {
               Proroctví naplněno!
             </h2>
             <p className="text-sm text-stone-200 mt-2">
-              Hrdina <span className="font-bold text-amber-400">{game.winner.name}</span> shromáždil
-              4 artefakty ze sfér a stal se novým vládcem království!
+              Hrdina <span className="font-bold text-amber-400">{game.winner.name}</span>{' '}
+              {game.winner.artifacts.length >= 4 ? 'shromáždil 4 artefakty ze sfér' : 'zvítězil v závěrečném boji'} a stal se novým vládcem království!
             </p>
             <button
               onClick={() => window.location.reload()}

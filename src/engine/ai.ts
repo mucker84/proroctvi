@@ -1,286 +1,214 @@
 import { BOARD_TILES } from '../data/board'
-import { SHOP_ITEMS } from '../data/cards'
-import { calculatePlayerAttack, CombatResult, getTacticalMoveOptions, rollCombat } from './gameEngine'
-import { BoardTile, Item, Monster, Player, SphereElement } from './types'
+import { ASTRAL_SPHERES } from '../data/spheres'
+import {
+  calculatePlayerAttack,
+  CombatContext,
+  CombatResult,
+  getTacticalMoveOptions,
+  rollCombat,
+  TacticalMovementOption,
+} from './gameEngine'
+import {
+  buyGood,
+  buyPrice,
+  canAttackPlayer,
+  canLearn,
+  claimedSpheresOf,
+  getAdventureCard,
+  getGuildCard,
+  getItem,
+  getTileServices,
+  learnFromGuild,
+  monstersOnTile,
+  opportunitiesOnTile,
+  pickUpArtifact,
+  resolveMonsterFight,
+  resolvePvp,
+  TILE_GUILD,
+  drinkPotion,
+  takeOpportunity,
+  applyService,
+} from './rules'
+import { BoardTile, GameState, Monster, Player } from './types'
 
-export type AIMoveChoice =
-  | { type: 'walk'; targetTileId: number; label: string }
-  | { type: 'horse'; targetTileId: number; costGold: 1; label: string }
-  | { type: 'ship'; targetTileId: number; costGold: 1; label: string }
-  | { type: 'gate'; targetTileId: number; costGold: 2; label: string }
-  | { type: 'stay'; targetTileId: number; label: string }
-  | { type: 'work'; workType: 'city_work' | 'guild_work' | 'fortress_training'; label: string }
-  | { type: 'enter_sphere'; sphereId: SphereElement; label: string }
+/** Pravděpodobnost, že součet hrdiny (základ + k6) přehodí součet soupeře (základ + k6) */
+export function winChance(diff: number): number {
+  let wins = 0
+  for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) if (diff + a > b) wins++
+  return wins / 36
+}
 
-export function scoreTileForAI(
-  player: Player,
-  tile: BoardTile,
-  claimedSpheres: Record<SphereElement, string | null>
-): number {
-  let score = 10
-  const isInjured = player.currentStrength < player.maxStrength - 1
-  if (isInjured) {
-    if (tile.id === 16) score += 45 // Klášter léčení zdarma
-    if (tile.id === 8 && player.gold >= 1) score += 35 // Lesní tábor léčení
-    if (tile.terrain === 'city') score += 20
+function bestMode(player: Player, monster: Monster, ctx: CombatContext): { mode: 'physical' | 'mental'; chance: number; pay: boolean } {
+  const phys = winChance(calculatePlayerAttack(player, 'physical', 0, ctx).total - monster.strength)
+  if (monster.combatType === 'physical') return { mode: 'physical', chance: phys, pay: false }
+  if (monster.combatType === 'mental') {
+    return { mode: 'mental', chance: winChance(calculatePlayerAttack(player, 'mental', 0, ctx).total - monster.will), pay: false }
   }
-  if (tile.id === 13 && player.currentWill < player.maxWill) {
-    score += 30 // Magická pustina (+3 Vůle zdarma)
+  if (player.currentWill < 2) return { mode: 'physical', chance: phys, pay: false }
+  const ment = winChance(calculatePlayerAttack({ ...player, currentWill: player.currentWill - 2 }, 'mental', 0, ctx).total - monster.will)
+  return ment > phys ? { mode: 'mental', chance: ment, pay: true } : { mode: 'physical', chance: phys, pay: false }
+}
+
+const guardianChance = (player: Player, monster: Monster, tile: BoardTile) => {
+  const c = bestMode(player, monster, { monster, tile }).chance
+  return c * c // nižší i vyšší strážce
+}
+
+function tileValue(s: GameState, player: Player, tile: BoardTile): number {
+  let score = 0
+  const hurt = player.currentStrength < player.maxStrength
+  const drained = player.currentWill < player.maxWill
+  for (const card of s.tileCards[tile.id] || []) {
+    const adv = getAdventureCard(card.cardId)
+    if (!card.faceUp) score += 3
+    else if (adv.monster) {
+      const c = bestMode(player, adv.monster, { monster: adv.monster, tile }).chance
+      score += c * (adv.monster.rewardExp * 3 + adv.monster.rewardGold + (card.lootItemId ? 6 : 0)) - (1 - c) * (player.currentStrength <= 1 ? 40 : 10)
+    } else score += 12
   }
-  if (player.experience >= 4 && tile.isGuild) {
-    score += 35 // Cechovní výcvik
+  if ((s.tileArtifacts[tile.id] || []).length) score += 60
+  for (const id of s.marketGoods[tile.id] || []) {
+    const item = getItem(id)
+    if (buyPrice(player, item) <= player.gold && improves(player, item)) score += 12
   }
-  if (tile.hasAstralGate && !claimedSpheres[tile.hasAstralGate]) {
-    if (player.currentStrength >= 6) {
-      score += 70 // Připraven na astrální sféru!
-    } else {
-      score -= 10
+  const guild = TILE_GUILD[tile.id]
+  if (guild) {
+    for (const id of s.guildOffers[tile.id] || []) {
+      const card = getGuildCard(id)
+      if (card && !canLearn(player, guild, card)) score += 18
     }
   }
-  if (tile.terrain === 'city' && player.gold >= 4 && player.inventory.length < 2) {
-    score += 25
-  }
-  if (tile.terrain === 'forest' || tile.terrain === 'mountain' || tile.terrain === 'plains') {
-    if (!isInjured) score += 20 // Divočina pro karty
+  if (hurt && (tile.id === 16 || (tile.id === 8 && player.gold >= 1))) score += player.currentStrength <= 2 ? 40 : 15
+  if (drained && (tile.id === 13 || (tile.id === 12 && player.gold >= 1))) score += 8
+  if (tile.nearSphere && !claimedSpheresOf(s)[tile.nearSphere]) {
+    const sphere = ASTRAL_SPHERES.find((sp) => sp.id === tile.nearSphere)!
+    if (guardianChance(player, sphere.guardian, tile) > 0.45) score += 45
   }
   return score
 }
 
-/**
- * Decides tactical movement for AI according to official Prophecy rules (No dice!).
- */
-export function decideAIMovement(
-  player: Player,
-  claimedSpheres: Record<SphereElement, string | null>
-): AIMoveChoice {
-  const currentTile = BOARD_TILES[player.currentTileId] || BOARD_TILES[0]
-
-  // 1. Enter Astral Sphere if ready
-  if (currentTile.nearSphere && !claimedSpheres[currentTile.nearSphere] && player.currentStrength >= 6) {
-    return {
-      type: 'enter_sphere',
-      sphereId: currentTile.nearSphere,
-      label: `Vstoupit do sféry (${currentTile.nearSphere})`,
-    }
-  }
-
-  // 2. Action instead of movement (Work / Training)
-  if (currentTile.workAction) {
-    if (currentTile.workAction.type === 'city_work' && player.gold <= 2 && player.currentWill >= 2) {
-      return { type: 'work', workType: 'city_work', label: 'Odborná práce ve městě (+2 zl)' }
-    }
-    if (currentTile.workAction.type === 'fortress_training' && player.currentStrength >= 5 && player.experience < 4) {
-      return { type: 'work', workType: 'fortress_training', label: 'Cvičiště v pevnosti (+2 exp)' }
-    }
-  }
-
-  // 3. Evaluate Movement options
-  const total = BOARD_TILES.length
-  const leftId = (player.currentTileId - 1 + total) % total
-  const rightId = (player.currentTileId + 1) % total
-  const leftTile = BOARD_TILES[leftId]
-  const rightTile = BOARD_TILES[rightId]
-
-  const options: { choice: AIMoveChoice; score: number }[] = [
-    {
-      choice: { type: 'walk', targetTileId: rightId, label: `Pěšky vpravo (${rightTile.name})` },
-      score: scoreTileForAI(player, rightTile, claimedSpheres),
-    },
-    {
-      choice: { type: 'walk', targetTileId: leftId, label: `Pěšky vlevo (${leftTile.name})` },
-      score: scoreTileForAI(player, leftTile, claimedSpheres),
-    },
-    {
-      choice: { type: 'stay', targetTileId: player.currentTileId, label: `Zůstat na místě (${currentTile.name})` },
-      score: scoreTileForAI(player, currentTile, claimedSpheres) - 5,
-    },
-  ]
-
-  // Horse movement (2 spaces) if wealthy
-  if (player.gold >= 2) {
-    const horseLeftId = (player.currentTileId - 2 + total) % total
-    const horseRightId = (player.currentTileId + 2) % total
-    const hLeftTile = BOARD_TILES[horseLeftId]
-    const hRightTile = BOARD_TILES[horseRightId]
-
-    options.push({
-      choice: { type: 'horse', targetTileId: horseRightId, costGold: 1, label: `Kůň vpravo (${hRightTile.name})` },
-      score: scoreTileForAI(player, hRightTile, claimedSpheres) + 2,
-    })
-    options.push({
-      choice: { type: 'horse', targetTileId: horseLeftId, costGold: 1, label: `Kůň vlevo (${hLeftTile.name})` },
-      score: scoreTileForAI(player, hLeftTile, claimedSpheres) + 2,
-    })
-  }
-
-  // Ship movement if in port (jen nejbližší přístavy, stejně jako u hráče)
-  if (currentTile.hasPort && player.gold >= 1) {
-    const ports = getTacticalMoveOptions(player, claimedSpheres).filter((o) => o.type === 'ship')
-    for (const port of ports) {
-      const portTile = BOARD_TILES[port.targetTileId]
-      options.push({
-        choice: { type: 'ship', targetTileId: port.targetTileId, costGold: 1, label: `Cesta lodí do ${portTile.name}` },
-        score: scoreTileForAI(player, portTile, claimedSpheres) + 3,
-      })
-    }
-  }
-
-  // Magic gate if in gate
-  if (currentTile.hasMagicGate && player.gold >= 2) {
-    const gates = BOARD_TILES.filter((t) => t.hasMagicGate && t.id !== currentTile.id)
-    for (const gate of gates) {
-      options.push({
-        choice: { type: 'gate', targetTileId: gate.id, costGold: 2, label: `Magická brána do ${gate.name}` },
-        score: scoreTileForAI(player, gate, claimedSpheres) + 4,
-      })
-    }
-  }
-
-  // Pick the highest scoring choice
-  options.sort((a, b) => b.score - a.score)
-  return options[0].choice
+/** Pomůže předmět v boji? Porovná nejlepší útok silou i vůlí s předmětem a bez něj. */
+function improves(player: Player, item: { id: string; type: string }): boolean {
+  if (item.type === 'potion') return player.inventory.filter((i) => i.type === 'potion').length < 2
+  const withItem = { ...player, inventory: [...player.inventory, getItem(item.id)] }
+  const score = (p: Player) => Math.max(calculatePlayerAttack(p, 'physical', 0).total, calculatePlayerAttack(p, 'mental', 0).total)
+  return score(withItem) > score(player)
 }
 
-/**
- * Decides what action the AI should perform upon landing on a tile.
- */
-export function decideAITileAction(
-  player: Player,
-  tile: BoardTile,
-  claimedSpheres: Record<SphereElement, string | null>
-): 'heal' | 'train_str' | 'train_will' | 'buy_item' | 'enter_sphere' | 'draw_card' | 'rest' | 'skip' {
-  // 1. Temple actions
-  if (tile.terrain === 'temple') {
-    if (player.currentStrength < player.maxStrength && player.gold >= 2) {
-      return 'heal'
-    }
-    if (player.experience >= 4) {
-      return 'train_will'
-    }
+export function decideAIMovement(s: GameState, pIdx: number): TacticalMovementOption {
+  const player = s.players[pIdx]
+  const claimed = claimedSpheresOf(s)
+  const options = getTacticalMoveOptions(player, claimed).filter((o) => o.isAvailable)
+  const current = BOARD_TILES[player.currentTileId]
+  const stay = options.find((o) => o.type === 'stay')!
+  if (s.finalBattle) return stay
+
+  const sphereOpt = options.find((o) => o.type === 'enter_sphere')
+  if (sphereOpt) {
+    const sphere = ASTRAL_SPHERES.find((sp) => sp.id === sphereOpt.sphereId)!
+    if (guardianChance(player, sphere.guardian, current) > 0.45) return sphereOpt
   }
 
-  // 2. Training ground actions
-  if (tile.terrain === 'training') {
-    if (player.experience >= 4) {
-      return 'train_str'
+  let best = stay
+  let bestScore = -Infinity
+  for (const opt of options) {
+    if (opt.type === 'enter_sphere') continue
+    let score: number
+    if (opt.type === 'work') {
+      score = (opt.rewardGold && player.gold <= 3 ? 14 : 0) + (opt.rewardExp && player.experience < 4 ? 14 : 0) + tileValue(s, player, current) * 0.5
+    } else {
+      score = tileValue(s, player, BOARD_TILES[opt.targetTileId]) - opt.costGold * 3 + (opt.type === 'stay' ? -2 : 0)
+    }
+    score += Math.random() * 2
+    if (score > bestScore) {
+      bestScore = score
+      best = opt
     }
   }
-
-  // 3. City & Camp Shopping
-  if (tile.terrain === 'city' || tile.terrain === 'camp') {
-    const canAffordWeaponOrArmor = SHOP_ITEMS.some(
-      (item) =>
-        player.gold >= item.price &&
-        (item.type === 'weapon' || item.type === 'armor' || item.type === 'potion') &&
-        !player.inventory.some((i) => i.id === item.id)
-    )
-    if (canAffordWeaponOrArmor && player.inventory.length < 4) {
-      return 'buy_item'
-    }
-  }
-
-  // 4. Astral Gate
-  if (tile.hasAstralGate && !claimedSpheres[tile.hasAstralGate]) {
-    // Only enter if AI has solid combat strength
-    if (player.currentStrength >= 6) {
-      return 'enter_sphere'
-    }
-  }
-
-  // 5. Wilderness (Forest, Mountain, Plains, Water)
-  if (tile.terrain === 'forest' || tile.terrain === 'mountain' || tile.terrain === 'plains' || tile.terrain === 'water') {
-    // If critical HP, rest rather than risk monster
-    if (player.currentStrength <= 2) {
-      return 'rest'
-    }
-    return 'draw_card'
-  }
-
-  return 'skip'
+  return best
 }
 
-/**
- * Picks the best item the AI can afford from the shop.
- */
-export function pickAIBestItem(player: Player): Item | null {
-  const affordable = SHOP_ITEMS.filter(
-    (item) => player.gold >= item.price && !player.inventory.some((i) => i.id === item.id)
-  )
-  if (affordable.length === 0) return null
-
-  // Prioritize weapons if no weapon
-  const hasWeapon = player.inventory.some((i) => i.type === 'weapon')
-  if (!hasWeapon) {
-    const weapon = affordable.find((i) => i.type === 'weapon')
-    if (weapon) return weapon
-  }
-
-  // Prioritize armor if no armor
-  const hasArmor = player.inventory.some((i) => i.type === 'armor')
-  if (!hasArmor) {
-    const armor = affordable.find((i) => i.type === 'armor')
-    if (armor) return armor
-  }
-
-  // Otherwise highest priced affordable item
-  return affordable.sort((a, b) => b.price - a.price)[0]
-}
-
-/**
- * Resolves a combat for the AI automatically using authentic Prophecy rules.
- */
+/** Automatický boj bota: jeden hod, u strážce sféry dvě vítězství po sobě */
 export function resolveAICombat(
   player: Player,
   monster: Monster,
-  isGuardian = false
-): {
-  result: CombatResult
-  newStrength: number
-  newWill: number
-  log: string[]
-} {
-  const pStr = player.currentStrength
-  let pWill = player.currentWill
-  const log: string[] = []
-
-  let combatType: 'physical' | 'mental' = 'physical'
-  if (monster.combatType === 'mental') {
-    combatType = 'mental'
-  } else if (monster.combatType === 'both') {
-    // Intelligent choice: compare strength vs will advantages
-    const pPhysicalBase = calculatePlayerAttack(player, 'physical', 0).total
-    const pMentalBase = calculatePlayerAttack({ ...player, currentWill: Math.max(0, pWill - 2) }, 'mental', 0).total
-    const physicalAdvantage = pPhysicalBase - monster.strength
-    const mentalAdvantage = pMentalBase - monster.will
-
-    if (pWill >= 2 && mentalAdvantage > physicalAdvantage) {
-      combatType = 'mental'
-      pWill -= 2 // Paid 2 will to invoke mental combat
-      log.push(`🔮 🤖 ${player.name} zaplatil 2 Vůli a vyvolal Boj vůlí proti ${monster.name}!`)
-    } else {
-      combatType = 'physical'
-      log.push(`⚔ 🤖 ${player.name} zvolil Boj silou proti ${monster.name}.`)
-    }
-  } else {
-    combatType = 'physical'
-  }
-
-  const enemyBase = combatType === 'physical' ? monster.strength : monster.will
-  const playerBase = calculatePlayerAttack({ ...player, currentWill: pWill }, combatType, 0).total
-
-  // Jeden hod rozhoduje; strážce sféry jsou dva (nižší a vyšší) → dvě vítězství po sobě
+  isGuardian = false,
+  ctx: CombatContext = {}
+): { result: CombatResult; newWill: number; log: string[] } {
+  const choice = bestMode(player, monster, { ...ctx, monster })
+  const will = player.currentWill - (choice.pay ? 2 : 0)
+  const base = calculatePlayerAttack({ ...player, currentWill: will }, choice.mode, 0, { ...ctx, monster }).total
+  const enemyBase = choice.mode === 'physical' ? monster.strength : monster.will
+  const log: string[] = choice.pay ? [`🔮 🤖 ${player.name} zaplatil 2 magy a vyvolal boj vůlí.`] : []
   let result: CombatResult = 'draw'
   for (let fight = 0; fight < (isGuardian ? 2 : 1); fight++) {
-    const roll = rollCombat(playerBase, enemyBase)
+    const roll = rollCombat(base, enemyBase)
     result = roll.result
     log.push(`🤖 ${player.name} ${roll.playerTotal} : ${roll.enemyTotal} ${monster.name}`)
     if (result !== 'win') break
   }
+  return { result, newWill: will, log }
+}
 
-  return {
-    result,
-    newStrength: pStr,
-    newWill: pWill,
-    log,
+/** Celý zbytek tahu bota po pohybu: boje, příležitosti, služby, nákupy, výcvik, útok na hráče */
+export function runAIActions(state: GameState, pIdx: number): GameState {
+  let s = state
+  const me = () => s.players[pIdx]
+  const tile = () => BOARD_TILES[me().currentTileId]
+
+  for (const card of monstersOnTile(s, tile().id)) {
+    const monster = getAdventureCard(card.cardId).monster!
+    const fight = resolveAICombat(me(), monster, false, { tile: tile() })
+    s = { ...s, players: s.players.map((p, i) => (i === pIdx ? { ...p, currentWill: fight.newWill } : p)) }
+    s = resolveMonsterFight(s, pIdx, card.uid, fight.result)
+    if (fight.result !== 'win' || s.winner) return s
   }
+
+  for (const card of opportunitiesOnTile(s, tile().id)) s = takeOpportunity(s, pIdx, card.uid)
+  for (const art of s.tileArtifacts[tile().id] || []) s = pickUpArtifact(s, pIdx, art.id)
+  if (s.winner) return s
+
+  for (let guard = 0; guard < 10; guard++) {
+    const services = getTileServices(s, pIdx).filter((sv) => sv.available)
+    const p = me()
+    const want = services.find(
+      (sv) =>
+        (sv.id === 'monastery_heal' && guard === 0) ||
+        (sv.id === 'camp_heal' && p.gold > 2) ||
+        (sv.id === 'wasteland_mana' && guard === 0) ||
+        (sv.id === 'tower_mana' && p.gold > 3) ||
+        (sv.id === 'inn' && guard === 0 && p.gold >= 3 && (p.currentStrength < p.maxStrength || p.currentWill < p.maxWill))
+    )
+    if (!want) break
+    s = applyService(s, pIdx, want.id)
+  }
+
+  for (const id of [...(s.marketGoods[tile().id] || [])]) {
+    const item = getItem(id)
+    if (buyPrice(me(), item) <= me().gold - 1 && improves(me(), item)) s = buyGood(s, pIdx, id)
+  }
+
+  const guild = TILE_GUILD[tile().id]
+  if (guild) {
+    for (const id of [...(s.guildOffers[tile().id] || [])]) {
+      const card = getGuildCard(id)
+      if (card && !canLearn(me(), guild, card)) s = learnFromGuild(s, pIdx, id)
+    }
+  }
+
+  if (me().currentStrength <= 2) {
+    const potion = me().inventory.find((i) => i.effect === 'heal_3_str' || i.effect === 'heal_full')
+    if (potion) s = drinkPotion(s, pIdx, potion.id)
+  }
+
+  s.players.forEach((target, tIdx) => {
+    if (s.winner || canAttackPlayer(s, pIdx, tIdx)) return
+    const mine = Math.max(calculatePlayerAttack(me(), 'physical', 0, { vsPlayer: true }).total)
+    const theirs = calculatePlayerAttack(target, 'physical', 0, { vsPlayer: true }).total
+    const worthIt = target.artifacts.length > 0 || target.inventory.length > 0
+    if (s.finalBattle || (worthIt && winChance(mine - theirs) > 0.6)) {
+      s = resolvePvp(s, pIdx, tIdx, 'physical').state
+    }
+  })
+  return s
 }

@@ -92,7 +92,7 @@ export const PlayerSheet: React.FC<PlayerSheetProps> = ({
 
         {/* Gold */}
         <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-800/60 shadow-sm">
-          <div className="text-[10px] text-amber-400 uppercase font-black tracking-wider">🪙 Zlaťáky</div>
+          <div className="text-[10px] text-amber-400 uppercase font-black tracking-wider">💰 Zlaťáky</div>
           <div className="text-xl font-black text-amber-300 mt-0.5">{player.gold}</div>
         </div>
 

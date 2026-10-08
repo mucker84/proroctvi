@@ -1,19 +1,17 @@
 import { BOARD_TILES } from '../data/board'
-import { ADVENTURE_CARDS, AVAILABLE_SPELLS } from '../data/cards'
 import { HERO_CLASSES } from '../data/characters'
 import { ASTRAL_SPHERES } from '../data/spheres'
 import {
-  AdventureCard,
+  BoardTile,
   CombatState,
   GameState,
   Item,
   Monster,
   Player,
-  Skill,
-  Spell,
   SphereElement,
 } from './types'
 
+/** Základ stavu bez rozložených karet; hru zakládá createGame v rules.ts. */
 export function createInitialGame(
   playerConfigs: { name: string; heroClassId: string; isAI?: boolean }[] = [
     { name: 'Hrdina 1', heroClassId: 'warrior' },
@@ -33,30 +31,31 @@ export function createInitialGame(
     isDiceRolling: false,
     currentCard: null,
     combat: null,
-    tileMonsters: {},
     winner: null,
     gameLog: ['Hra Proroctví zahájena! Cílem je získat 4 z 5 magických artefaktů ze sfér.'],
+    tileCards: {},
+    adventureDecks: { forest: [], mountain: [], plains: [] },
+    adventureDiscard: { forest: [], mountain: [], plains: [] },
+    chanceDeck: [],
+    chanceDiscard: [],
+    guildOffers: {},
+    guildDecks: { fortress: [], guild: [], camp: [], tower: [], monastery: [] },
+    marketGoods: {},
+    commonDeck: [],
+    rareDeck: [],
+    itemDiscard: [],
+    tileArtifacts: {},
+    lastChance: null,
+    extraTurnFor: null,
+    safeInInn: [],
+    finalBattle: null,
   }
 }
 
+/** Nová postava podle pravidel ALTAR: 3 body zkušenosti, žádné schopnosti ani kouzla. */
 export function createHero(id: string, name: string, heroClassId: string, isAI: boolean): Player {
   const heroClass =
     HERO_CLASSES.find((h) => h.id === heroClassId) || HERO_CLASSES[0]
-
-  const startingSpells: Spell[] = []
-  if (heroClass.id === 'mage') {
-    const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
-    if (fb) startingSpells.push(fb)
-  } else if (heroClass.id === 'warlock') {
-    const mb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_mind_blast')
-    if (mb) startingSpells.push(mb)
-  } else if (heroClass.id === 'witch') {
-    const fb = AVAILABLE_SPELLS.find((s) => s.id === 'spell_fireball')
-    if (fb) startingSpells.push(fb)
-  } else if (heroClass.id === 'druid') {
-    const heal = AVAILABLE_SPELLS.find((s) => s.id === 'spell_heal')
-    if (heal) startingSpells.push(heal)
-  }
 
   return {
     id,
@@ -67,49 +66,34 @@ export function createHero(id: string, name: string, heroClassId: string, isAI: 
     currentWill: heroClass.baseWill,
     maxWill: heroClass.baseWill,
     gold: heroClass.baseGold,
-    experience: 0,
+    experience: 3,
     currentTileId: heroClass.startTileId,
     inventory: [],
     skills: [],
-    spells: startingSpells,
+    spells: [],
     artifacts: [],
     isAI,
   }
 }
 
-/** Kdo drží artefakt které sféry — odvozeno z hráčů, takže se online synchronizuje samo. */
-export function getClaimedSpheres(players: Player[]): Record<SphereElement, string | null> {
+/** Kdo drží artefakt které sféry; artefakt ležící na poli už ve sféře není. */
+export function getClaimedSpheres(
+  players: Player[],
+  tileArtifacts: GameState['tileArtifacts'] = {}
+): Record<SphereElement, string | null> {
   const claimed: Record<SphereElement, string | null> = { fire: null, ice: null, shadow: null, storm: null, magic: null }
+  const lying = Object.entries(tileArtifacts).flatMap(([tileId, arts]) => arts.map((a) => ({ a, tileId })))
   for (const sphere of ASTRAL_SPHERES) {
     const owner = players.find((p) => p.artifacts.some((a) => a.id === sphere.artifact.id))
-    claimed[sphere.id] = owner ? owner.name : null
+    const onTile = lying.find((l) => l.a.id === sphere.artifact.id)
+    claimed[sphere.id] = owner ? owner.name : onTile ? `leží na poli #${onTile.tileId}` : null
   }
   return claimed
 }
 
-/**
- * Prohra v boji podle pravidel ALTAR: postava ztratí 1 život. Při síle 0 už další ztráta znamená smrt —
- * hráč pak pokračuje novou postavou téhož povolání na jejím startovním cechu (−1 život, −2 magy),
- * zlato, předměty i schopnosti propadnou. Artefakty se vracejí do sfér (deska je nechává ležet na poli).
- */
-export function applyCombatLoss(player: Player): { player: Player; died: boolean } {
-  if (player.currentStrength > 0) {
-    return { player: { ...player, currentStrength: player.currentStrength - 1 }, died: false }
-  }
-  const fresh = createHero(player.id, player.name, player.heroClass.id, player.isAI || false)
-  return {
-    player: {
-      ...fresh,
-      currentStrength: Math.max(0, fresh.maxStrength - 1),
-      currentWill: Math.max(0, fresh.maxWill - 2),
-    },
-    died: true,
-  }
-}
-
 export interface TacticalMovementOption {
   id: string
-  type: 'walk' | 'horse' | 'ship' | 'gate' | 'stay' | 'work' | 'enter_sphere'
+  type: 'walk' | 'horse' | 'ship' | 'gate' | 'boots' | 'stay' | 'work' | 'enter_sphere'
   targetTileId: number
   label: string
   detail: string
@@ -182,7 +166,7 @@ export function getTacticalMoveOptions(
     type: 'horse',
     targetTileId: horseLeftId,
     label: `Na koni vlevo (#${horseLeftId} ${hLeftTile.name})`,
-    detail: '1 🪙 zl. · 2 pole proti směru',
+    detail: '1 💰 zl. · 2 pole proti směru',
     icon: '🐎',
     costGold: 1,
     isAvailable: player.gold >= 1,
@@ -194,12 +178,29 @@ export function getTacticalMoveOptions(
     type: 'horse',
     targetTileId: horseRightId,
     label: `Na koni vpravo (#${horseRightId} ${hRightTile.name})`,
-    detail: '1 🪙 zl. · 2 pole po směru',
+    detail: '1 💰 zl. · 2 pole po směru',
     icon: '🐎',
     costGold: 1,
     isAvailable: player.gold >= 1,
     unavailableReason: player.gold < 1 ? 'Nemáš 1 zlaťák na koně' : undefined,
   })
+
+  // Pohybový předmět (symbol botičky): Okřídlené boty
+  if (player.inventory.some((i) => i.effect === 'move_3')) {
+    for (const dir of [-1, 1] as const) {
+      const targetId = (player.currentTileId + dir * 3 + total) % total
+      options.push({
+        id: `boots-${dir}-${targetId}`,
+        type: 'boots',
+        targetTileId: targetId,
+        label: `Okřídlené boty ${dir < 0 ? 'vlevo' : 'vpravo'} (#${targetId} ${BOARD_TILES[targetId].name})`,
+        detail: 'Zdarma · 3 pole',
+        icon: '👢',
+        costGold: 0,
+        isAvailable: true,
+      })
+    }
+  }
 
   // 3. Ship: nejbližší přístav nalevo a napravo (pravidla ALTAR, Pohyb d)
   if (currentTile.hasPort) {
@@ -219,7 +220,7 @@ export function getTacticalMoveOptions(
         type: 'ship',
         targetTileId: port.id,
         label: `Cesta lodí do #${port.id} (${port.name})`,
-        detail: '1 🪙 zl. · Plavba přes moře',
+        detail: '1 💰 zl. · Plavba přes moře',
         icon: '⛵',
         costGold: 1,
         isAvailable: player.gold >= 1,
@@ -237,7 +238,7 @@ export function getTacticalMoveOptions(
         type: 'gate',
         targetTileId: gate.id,
         label: `Magická brána do #${gate.id} (${gate.name})`,
-        detail: '2 🪙 zl. · Okamžitý přenos',
+        detail: '2 💰 zl. · Okamžitý přenos',
         icon: '🌀',
         costGold: 2,
         isAvailable: player.gold >= 2,
@@ -285,7 +286,7 @@ export function getTacticalMoveOptions(
         costGold: 0,
         sphereId: sphere.id,
         isAvailable: !isTaken,
-        unavailableReason: isTaken ? `Artefakt již získal ${claimedSpheres[currentTile.nearSphere]}` : undefined,
+        unavailableReason: isTaken ? `Artefakt už ${claimedSpheres[currentTile.nearSphere]?.startsWith('leží') ? '' : 'získal '}${claimedSpheres[currentTile.nearSphere]}` : undefined,
       })
     }
   }
@@ -293,58 +294,83 @@ export function getTacticalMoveOptions(
   return options
 }
 
-export function drawCardForTerrain(terrain: string): AdventureCard {
-  const matching = ADVENTURE_CARDS.filter((c) => c.terrain === terrain)
-  if (matching.length === 0) {
-    return ADVENTURE_CARDS[0]
-  }
-  const randomIndex = Math.floor(Math.random() * matching.length)
-  return matching[randomIndex]
+type CombatMode = 'physical' | 'mental'
+
+const itemBonus = (item: Item, mode: CombatMode) =>
+  mode === 'physical' ? (item.strengthBonus || 0) + (item.defenseBonus || 0) : item.willBonus || 0
+
+/**
+ * Co hrdina v boji skutečně použije. Má dvě ruce a jednu hlavu: v rukou buď jednu obouruční zbraň,
+ * nebo jednu jednoruční zbraň a jeden štít; na hlavě jednu věc; k tomu jednu zbroj.
+ * Prsteny a amulety působí vždy. Lektvary a pohybové předměty se v boji nepočítají.
+ */
+export function selectCombatLoadout(player: Player, mode: CombatMode): { used: Item[]; unused: Item[] } {
+  const usable = player.inventory.filter((i) => i.type !== 'potion' && i.effect !== 'move_3')
+  const best = (items: Item[]) =>
+    items.reduce<Item | null>((top, i) => (itemBonus(i, mode) > (top ? itemBonus(top, mode) : 0) ? i : top), null)
+
+  const weapons = usable.filter((i) => i.type === 'weapon')
+  const oneHanded = best(weapons.filter((i) => (i.hands ?? 1) === 1))
+  const twoHanded = best(weapons.filter((i) => i.hands === 2))
+  const shield = best(usable.filter((i) => i.type === 'shield'))
+  const oneHandSet = [oneHanded, shield].filter((i): i is Item => !!i)
+  const oneHandScore = oneHandSet.reduce((sum, i) => sum + itemBonus(i, mode), 0)
+  const hands = twoHanded && itemBonus(twoHanded, mode) > oneHandScore ? [twoHanded] : oneHandSet
+
+  const armor = best(usable.filter((i) => i.type === 'armor'))
+  const head = best(usable.filter((i) => i.effect === 'head'))
+  const always = usable.filter((i) => i.type === 'accessory' && i.effect !== 'head' && itemBonus(i, mode) > 0)
+
+  const used = [...hands, armor, head, ...always].filter((i): i is Item => !!i && itemBonus(i, mode) > 0)
+  const unused = usable.filter((i) => !used.includes(i))
+  return { used, unused }
 }
+
+export interface CombatContext {
+  monster?: Monster
+  tile?: BoardTile
+  vsPlayer?: boolean
+}
+
+const hasSkill = (player: Player, id: string) => player.skills.some((s) => s.id === id)
 
 export function calculatePlayerAttack(
   player: Player,
-  type: 'physical' | 'mental',
-  roll: number
-): { base: number; equipmentBonus: number; total: number } {
-  let base = type === 'physical' ? player.currentStrength : player.currentWill
-  let equipmentBonus = 0
+  type: CombatMode,
+  roll: number,
+  ctx: CombatContext = {}
+): { base: number; equipmentBonus: number; skillBonus: number; total: number; used: Item[]; unused: Item[] } {
+  const base = type === 'physical' ? player.currentStrength : player.currentWill
+  const { used, unused } = selectCombatLoadout(player, type)
+  let equipmentBonus = used.reduce((sum, i) => sum + itemBonus(i, type), 0)
+  equipmentBonus += player.artifacts.reduce((sum, a) => sum + (type === 'physical' ? a.strengthBonus : a.willBonus), 0)
 
+  let skillBonus = 0
   if (type === 'physical') {
-    // Zbroj a štíty přidávají k síle v boji (deska nezná zvláštní obranu)
-    player.inventory.forEach((item) => {
-      if (item.strengthBonus) equipmentBonus += item.strengthBonus
-      if (item.defenseBonus) equipmentBonus += item.defenseBonus
-    })
-    player.artifacts.forEach((art) => {
-      equipmentBonus += art.strengthBonus
-    })
-    // Warrior class passive bonus
-    if (player.heroClass.id === 'warrior') {
-      equipmentBonus += 1
-    }
+    if (player.heroClass.id === 'warrior') skillBonus += 1
+    if (hasSkill(player, 'skill_weapon_master')) skillBonus += 1
+    if (hasSkill(player, 'skill_shield_wall') && used.some((i) => i.type === 'shield')) skillBonus += 1
   } else {
-    player.inventory.forEach((item) => {
-      if (item.willBonus) equipmentBonus += item.willBonus
-    })
-    player.artifacts.forEach((art) => {
-      equipmentBonus += art.willBonus
-    })
+    if (hasSkill(player, 'skill_iron_will')) skillBonus += 1
+    if (hasSkill(player, 'skill_arcane')) skillBonus += 1
   }
+  if (hasSkill(player, 'skill_woodcraft') && ctx.tile?.terrain === 'forest') skillBonus += 1
+  if (hasSkill(player, 'skill_hunter') && ctx.monster?.combatType === 'physical') skillBonus += 1
+  if (hasSkill(player, 'skill_dirty_fight') && ctx.vsPlayer) skillBonus += 2
 
   return {
     base,
     equipmentBonus,
-    total: base + equipmentBonus + roll,
+    skillBonus,
+    total: base + equipmentBonus + skillBonus + roll,
+    used,
+    unused,
   }
 }
 
+/** Součet bonusů zbroje a štítu, které hrdina v boji silou opravdu použije. */
 export function calculatePlayerDefense(player: Player): number {
-  let defense = 0
-  player.inventory.forEach((item) => {
-    if (item.defenseBonus) defense += item.defenseBonus
-  })
-  return defense
+  return selectCombatLoadout(player, 'physical').used.reduce((sum, i) => sum + (i.defenseBonus || 0), 0)
 }
 
 export type CombatResult = 'win' | 'loss' | 'draw'

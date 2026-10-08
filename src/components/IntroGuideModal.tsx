@@ -57,7 +57,7 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
                 <span>Divočina</span>
               </div>
               <p className="text-[11px] text-stone-300 leading-relaxed">
-                <strong>Lesy 🌲, Hory ⛰️, Pláně 🌾 a Řeka 🌊</strong> – tam taháš karty dobrodružství. Bojuješ s netvory a nacházíš poklady, ze kterých získáváš Zlaťáky (🪙) a Zkušenosti (⭐).
+                <strong>Lesy 🌲, Hory ⛰️ a Pláně 🌾</strong> – tam leží karty dobrodružství (rozkládá je karta náhody). Kdo na pole vstoupí, zakryté karty odkryje a s nestvůrami musí bojovat. Za vítězství získáš Zlaťáky (💰), Zkušenosti (⭐) a někdy i předmět.
               </p>
             </div>
           </div>
@@ -76,7 +76,7 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
                 <span className="text-lg shrink-0">👹</span>
                 <div>
                   <strong className="text-stone-100 block">Netvoři:</strong>
-                  Když je porazíš, získáš <span className="text-amber-400 font-bold">Zlaťáky (🪙)</span> a <span className="text-emerald-400 font-bold">Zkušenosti (⭐)</span>.
+                  Když je porazíš, získáš <span className="text-amber-400 font-bold">Zlaťáky (💰)</span> a <span className="text-emerald-400 font-bold">Zkušenosti (⭐)</span>.
                 </div>
               </div>
               <div className="p-2 rounded-xl bg-stone-950/80 border border-amber-950/80 flex items-start gap-2">
@@ -132,11 +132,11 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold">2.</span>
-                <span><strong>Právě 1 akce:</strong> V divočině vytáhneš 1 kartu dobrodružství, v civilizaci či cechu navštívíš výcvik a tržiště, v pustině medituješ, nebo si odpočineš.</span>
+                <span><strong>Boje a možnosti pole:</strong> Nejdřív porazíš nestvůry, které na poli leží. Pak smíš využít všechno, co pole nabízí, v libovolném pořadí: příležitosti, trh, cech, léčení, magenergii, nocleh nebo útok na jinou postavu.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">3.</span>
-                <span><strong>Předání tahu:</strong> Jakmile akci dokončíš, tah se automaticky předá dalšímu hráči.</span>
+                <span><strong>Konec tahu:</strong> Tah ukončíš tlačítkem. Po prohře, remíze nebo útoku na sféru končí sám. Na začátku každého tahu se otočí karta náhody, která mění svět: nová dobrodružství, zboží, schopnosti v cechech nebo události jako Krize.</span>
               </li>
             </ul>
           </div>

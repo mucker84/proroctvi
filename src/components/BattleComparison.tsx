@@ -1,5 +1,5 @@
 import { calculatePlayerAttack } from '../engine/gameEngine'
-import { Monster, Player } from '../engine/types'
+import { BoardTile, Monster, Player } from '../engine/types'
 
 type BattleMode = 'physical' | 'mental'
 
@@ -14,15 +14,16 @@ interface BattleComparisonProps {
   playerTotal?: number | null
   enemyTotal?: number | null
   spellBonus?: number
+  tile?: BoardTile
 }
 
 export function BattleComparison({
   player, enemy, mode, strength = player.currentStrength, will = player.currentWill,
-  playerRoll, enemyRoll, playerTotal, enemyTotal, spellBonus = 0,
+  playerRoll, enemyRoll, playerTotal, enemyTotal, spellBonus = 0, tile,
 }: BattleComparisonProps) {
   const livePlayer = { ...player, currentStrength: strength, currentWill: will }
-  const physical = calculatePlayerAttack(livePlayer, 'physical', 0)
-  const mental = calculatePlayerAttack(livePlayer, 'mental', 0)
+  const physical = calculatePlayerAttack(livePlayer, 'physical', 0, { monster: enemy, tile })
+  const mental = calculatePlayerAttack(livePlayer, 'mental', 0, { monster: enemy, tile })
   const physicalPreview = physical.total + (mode === 'physical' ? spellBonus : 0)
   const mentalPreview = mental.total + (mode === 'mental' ? spellBonus : 0)
   const hasRoll = playerTotal != null && enemyTotal != null
@@ -61,6 +62,7 @@ export function BattleComparison({
       </div>
       <div className="battle-formula">
         Příští hod: základ {mode === 'physical' ? strength : will} + výbava {mode === 'physical' ? physical.equipmentBonus : mental.equipmentBonus}
+        {(mode === 'physical' ? physical.skillBonus : mental.skillBonus) > 0 ? ` + schopnosti ${mode === 'physical' ? physical.skillBonus : mental.skillBonus}` : ''}
         {spellBonus > 0 ? ` + kouzlo ${spellBonus}` : ''} + hod 🎲 1–6
         <span>proti {mode === 'physical' ? enemy.strength : enemy.will} + hod 🎲 1–6</span>
       </div>

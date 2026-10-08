@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import { calculatePlayerAttack, CombatResult, rollCombat } from '../engine/gameEngine'
-import { CombatState, Player, Spell } from '../engine/types'
+import { BoardTile, CombatState, Item, Player, Spell } from '../engine/types'
 import { BattleComparison } from './BattleComparison'
+import { LootLine } from './LootLine'
 
 type BattleMode = 'physical' | 'mental'
 
 interface CombatModalProps {
   player: Player
   combat: CombatState
+  tile: BoardTile
+  /** Předem vylosovaný předmět z kořisti nestvůry */
+  lootItemId?: string
   onCombatEnd: (result: CombatResult) => void
   onUpdatePlayerStats: (newStrength: number, newWill: number) => void
   onFleeCombat?: () => void
@@ -25,7 +29,7 @@ function isSpellAvailable(spell: Spell, mode: BattleMode, will: number) {
 }
 
 // Jeden hod rozhoduje (pravidla ALTAR). Strážce sféry = nižší a vyšší strážce, tedy dvě vítězství po sobě.
-function playRound(state: RoundState, player: Player, mode: BattleMode, spell: Spell | null): RoundState {
+function playRound(state: RoundState, player: Player, mode: BattleMode, spell: Spell | null, tile: BoardTile): RoundState {
   const cast = spell && isSpellAvailable(spell, mode, state.will) ? spell : null
   let strength = state.strength
   const will = state.will - (cast?.willCost ?? 0)
@@ -33,7 +37,7 @@ function playRound(state: RoundState, player: Player, mode: BattleMode, spell: S
   const log = [...state.combat.log]
   if (cast?.id === 'spell_heal') strength = Math.min(player.maxStrength, strength + 3)
 
-  const attack = calculatePlayerAttack({ ...player, currentStrength: strength, currentWill: will }, mode, 0)
+  const attack = calculatePlayerAttack({ ...player, currentStrength: strength, currentWill: will }, mode, 0, { monster: state.combat.enemy, tile })
   const enemyBase = mode === 'physical' ? state.combat.enemy.strength : state.combat.enemy.will
   const roll = rollCombat(attack.total + (cast?.combatBonus ?? 0), enemyBase)
   let result: CombatResult | undefined
@@ -60,7 +64,7 @@ function playRound(state: RoundState, player: Player, mode: BattleMode, spell: S
   }
 }
 
-export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, onFleeCombat }: CombatModalProps) {
+export function CombatModal({ player, combat, tile, lootItemId, onCombatEnd, onUpdatePlayerStats, onFleeCombat }: CombatModalProps) {
   const [state, setState] = useState<RoundState>({
     combat, strength: player.currentStrength, will: player.currentWill,
     hits: combat.isSphereGuardian ? 2 : 1,
@@ -72,8 +76,8 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
   const canChooseMode = current.enemy.combatType === 'both'
   const canSwitchMode = current.round === 1 && current.playerRoll === null && !rolling && !current.isFinished
   const canAffordMental = state.will >= 2 || (current.invokedMentalCostPaid ?? false)
-  const equipment = player.inventory.filter((item) => item.strengthBonus || item.willBonus || item.defenseBonus)
-  const modeBonus = mode === 'physical' ? 'strengthBonus' : 'willBonus'
+  const loadout = calculatePlayerAttack(player, mode, 0, { monster: current.enemy, tile })
+  const itemBonus = (item: Item) => (mode === 'physical' ? (item.strengthBonus || 0) + (item.defenseBonus || 0) : item.willBonus || 0)
   const previewStrength = selectedSpell?.id === 'spell_heal' ? Math.min(player.maxStrength, state.strength + 3) : state.strength
   const previewWill = state.will - (selectedSpell?.willCost ?? 0)
 
@@ -132,7 +136,7 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
     if (rolling || current.isFinished) return
     setRolling(true)
     window.setTimeout(() => {
-      commit(playRound(state, player, mode, selectedSpell))
+      commit(playRound(state, player, mode, selectedSpell, tile))
       setRolling(false)
     }, 380)
   }
@@ -142,7 +146,7 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
     let next = state
     let rounds = 0
     do {
-      next = playRound(next, player, mode, rounds === 0 ? selectedSpell : null)
+      next = playRound(next, player, mode, rounds === 0 ? selectedSpell : null, tile)
       rounds++
     } while (!next.combat.isFinished && rounds < 100)
     commit(next)
@@ -183,22 +187,23 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
 
           <BattleComparison player={player} enemy={current.enemy} mode={mode} strength={previewStrength} will={previewWill}
             playerRoll={current.playerRoll} enemyRoll={current.enemyRoll} playerTotal={current.playerTotalAttack} enemyTotal={current.enemyTotalAttack}
-            spellBonus={selectedSpell?.combatBonus ?? 0} />
+            spellBonus={selectedSpell?.combatBonus ?? 0} tile={tile} />
           {current.enemy.specialAbility && <p className="battle-warning">⚠ {current.enemy.specialAbility}</p>}
 
           {!current.isFinished && <>
-            <p className="battle-section-title">Zbraně a výbava <span>započteny automaticky</span></p>
+            <p className="battle-section-title">Výbava v boji <span>dvě ruce · jedna hlava · jedna zbroj</span></p>
             <div className="battle-equipment">
-              {equipment.length ? equipment.map((item) => {
-                const bonuses = [
-                  item[modeBonus] ? `+${item[modeBonus]} ${mode === 'physical' ? 'síla' : 'vůle'}` : '',
-                  mode === 'physical' && item.defenseBonus ? `+${item.defenseBonus} zbroj` : '',
-                ].filter(Boolean)
-                return <span key={item.id}>⚔ {item.name} <b>{bonuses.length ? bonuses.join(' · ') : `účinkuje při boji ${mode === 'physical' ? 'vůlí' : 'silou'}`}</b></span>
-              }) : <span>Bez zbraně · základní útok hrdiny</span>}
+              {loadout.used.length ? loadout.used.map((item) => (
+                <span key={item.id}>⚔ {item.name}{item.hands === 2 ? ' (obouruční)' : ''} <b>+{itemBonus(item)} {mode === 'physical' ? 'síla' : 'vůle'}</b></span>
+              )) : <span>Bez výbavy · základní {mode === 'physical' ? 'síla' : 'vůle'} hrdiny</span>}
               {player.artifacts.map((art) => <span key={art.id}>✦ {art.name} <b>+{mode === 'physical' ? art.strengthBonus : art.willBonus}</b></span>)}
-              {player.heroClass.id === 'warrior' && mode === 'physical' && <span>⚔ Válečník <b>+1 síla</b></span>}
+              {loadout.skillBonus > 0 && <span>★ Schopnosti a povolání <b>+{loadout.skillBonus}</b></span>}
             </div>
+            {loadout.unused.length > 0 && (
+              <p className="battle-hint">
+                Nepoužito: {loadout.unused.map((item) => `${item.name} (${itemBonus(item) > 0 ? 'ruce nebo místo jsou obsazené' : mode === 'physical' ? 'v boji silou nepomáhá' : 'v boji vůlí nepomáhá'})`).join(', ')}.
+              </p>
+            )}
 
             <p className="battle-section-title">Kouzlo <span>volitelné před hodem</span></p>
             <div className="battle-spells" role="group" aria-label="Kouzlo pro toto kolo">
@@ -216,7 +221,7 @@ export function CombatModal({ player, combat, onCombatEnd, onUpdatePlayerStats, 
 
           {current.isFinished && <div className={`battle-outcome ${current.result === 'win' ? 'is-win' : 'is-loss'}`} role="status">
             <strong>{current.result === 'win' ? 'Vítězství' : current.result === 'draw' ? 'Remíza' : 'Porážka'}</strong>
-            {current.result === 'win' && <span>Kořist 🪙 +{current.enemy.rewardGold} · ✦ +{current.enemy.rewardExp} zkušeností</span>}
+            {current.result === 'win' && <LootLine label="Kořist" gold={current.enemy.rewardGold} exp={current.enemy.rewardExp} itemId={lootItemId} />}
             {current.result === 'loss' && <span>−1 život{state.strength === 0 ? ' · při síle 0 to znamená smrt postavy' : ''}{combat.isSphereGuardian ? '' : ' · netvor zůstává na poli'}</span>}
             {current.result === 'draw' && <span>Nic se nestalo{combat.isSphereGuardian ? '' : ' · netvor zůstává na poli'}</span>}
           </div>}

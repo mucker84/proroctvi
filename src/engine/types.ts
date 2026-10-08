@@ -25,7 +25,14 @@ export interface Item {
   description: string
   effect?: string
   isEquipped?: boolean
+  /** Kolik rukou předmět v boji zabere (zbraně, štíty, hole). Bez údaje = nedrží se v ruce. */
+  hands?: 1 | 2
+  /** Běžný (hnědý rub) nebo vzácný (zlatý rub) předmět */
+  rarity?: 'common' | 'rare'
 }
+
+/** Pět cechů blízko středu plánu */
+export type GuildId = 'fortress' | 'guild' | 'camp' | 'tower' | 'monastery'
 
 export interface Skill {
   id: string
@@ -34,6 +41,9 @@ export interface Skill {
   costExp: number
   description: string
   effect: string
+  guild?: GuildId
+  /** Jednorázový výcvik: kartu hrdina nespotřebuje do schopností, jen trvale zvýší vlastnost */
+  training?: 'strength' | 'will'
 }
 
 export interface Spell {
@@ -43,6 +53,8 @@ export interface Spell {
   description: string
   combatBonus?: number
   effect: string
+  guild?: GuildId
+  costExp?: number
 }
 
 export interface Monster {
@@ -56,6 +68,8 @@ export interface Monster {
   description: string
   specialAbility?: string
   image?: string
+  /** Kořist navíc ke zlatu a zkušenostem: náhodný běžný nebo vzácný předmět */
+  loot?: 'common' | 'rare'
 }
 
 export interface AdventureCard {
@@ -128,6 +142,38 @@ export interface HeroClass {
   baseGold: number
   startTileId: number
   passiveAbility: string
+  /** Dva cechy, jejichž je postava členem (výcvik bez příplatku ve zlatě) */
+  guilds: GuildId[]
+}
+
+/** Karta dobrodružství ležící na poli */
+export interface TileCard {
+  uid: string
+  cardId: string
+  faceUp: boolean
+  /** Předem vylosovaná kořist, aby ji hráč viděl ještě před bojem */
+  lootItemId?: string
+}
+
+export type ChanceKind =
+  | 'terrain'
+  | 'guild'
+  | 'free_training'
+  | 'market'
+  | 'calm'
+  | 'wind'
+  | 'charity'
+  | 'crisis'
+
+export interface ChanceCard {
+  id: string
+  name: string
+  kind: ChanceKind
+  text: string
+  terrain?: 'forest' | 'mountain' | 'plains'
+  guild?: GuildId
+  marketTileId?: number
+  wind?: 'fresh' | 'magic' | 'kind' | 'good_times'
 }
 
 export interface Player {
@@ -147,6 +193,8 @@ export interface Player {
   spells: Spell[]
   artifacts: Artifact[]
   isAI?: boolean
+  /** Číslo kola, ve kterém hrdina využil Únik do stínů (jednou za kolo) */
+  escapeUsedTurn?: number
 }
 
 export type GamePhase =
@@ -186,6 +234,28 @@ export interface GameState {
   combat: CombatState | null
   gameLog: string[]
   winner: Player | null
-  /** Neporažení netvoři ležící na polích (klíč = id pole), podle pravidel ALTAR */
-  tileMonsters?: Record<number, AdventureCard>
+  /** Karty dobrodružství ležící na polích (klíč = id pole), nejvýš dvě */
+  tileCards: Record<number, TileCard[]>
+  adventureDecks: Record<'forest' | 'mountain' | 'plains', string[]>
+  adventureDiscard: Record<'forest' | 'mountain' | 'plains', string[]>
+  chanceDeck: string[]
+  chanceDiscard: string[]
+  /** Schopnosti nabízené v cechu (klíč = id pole cechu), [0] je nejstarší */
+  guildOffers: Record<number, string[]>
+  guildDecks: Record<GuildId, string[]>
+  /** Zboží ležící na prodej ve Městě a Vesnici (id instancí předmětů) */
+  marketGoods: Record<number, string[]>
+  commonDeck: string[]
+  rareDeck: string[]
+  itemDiscard: string[]
+  /** Artefakty padlých postav ležící na poli */
+  tileArtifacts: Record<number, Artifact[]>
+  /** Poslední karta náhody, aby ji viděli všichni hráči */
+  lastChance: { cardId: string; playerName: string; detail: string } | null
+  /** Hráč, který má díky Klidným časům v tomto kole ještě jeden tah */
+  extraTurnFor: string | null
+  /** Hráči v bezpečí po noclehu v hospodě (do svého dalšího tahu) */
+  safeInInn: string[]
+  /** Závěrečný boj: favorité na bitevním poli */
+  finalBattle: { tileId: number } | null
 }

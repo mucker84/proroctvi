@@ -12,6 +12,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 2,
     baseGold: 5,
     startTileId: 0, // Pevnost
+    guilds: ['fortress', 'camp'],
     passiveAbility: 'Bojový instinkt: +1 k Fyzickému hodu kostkou v boji s monstry.',
   },
   {
@@ -25,6 +26,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 6,
     baseGold: 8,
     startTileId: 12, // Magická Věž
+    guilds: ['tower', 'monastery'],
     passiveAbility: 'Vnitřní zřídlo: Obnovuje 1 Vůli navíc při odpočinku v chrámu.',
   },
   {
@@ -38,6 +40,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 3,
     baseGold: 6,
     startTileId: 8, // Lesní Tábor
+    guilds: ['camp', 'fortress'],
     passiveAbility: 'Lesní běžec: Může projít lesem o 1 pole dále než ostatní.',
   },
   {
@@ -51,6 +54,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 4,
     baseGold: 12,
     startTileId: 4, // Gilda Zlodějů
+    guilds: ['guild', 'tower'],
     passiveAbility: 'Šikovné ruce: Získává o 2 Zlaťáky více z každé odměny nebo truhly.',
   },
   {
@@ -64,6 +68,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 5,
     baseGold: 4,
     startTileId: 8, // Lesní Tábor
+    guilds: ['camp', 'monastery'],
     passiveAbility: 'Bylinkářství: Může se zdarma vyléčit o 1 Sílu v každé lesní provincii.',
   },
   {
@@ -77,6 +82,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 4,
     baseGold: 7,
     startTileId: 0, // Pevnost
+    guilds: ['fortress', 'monastery'],
     passiveAbility: 'Svatá ochrana: Imunita vůči kletbám a zákeřným efektům.',
   },
   {
@@ -90,6 +96,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 5,
     baseGold: 3,
     startTileId: 16, // Posvátný Klášter
+    guilds: ['monastery', 'fortress'],
     passiveAbility: 'Železná pěst: Má přirozený bonus +1 k útoku i bez zbraně v ruce.',
   },
   {
@@ -103,6 +110,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 5,
     baseGold: 7,
     startTileId: 12, // Magická Věž
+    guilds: ['tower', 'camp'],
     passiveAbility: 'Vaření lektvarů: Může na začátku tahu proměnit 2 byliny v Léčivý lektvar.',
   },
   {
@@ -110,12 +118,13 @@ export const HERO_CLASSES: HeroClass[] = [
     name: 'Žoldnéř',
     title: 'Bojovník za zlaťáky',
     description: 'Ostřílený válečník, který slouží tomu, kdo nabídne nejvíc. Mistr zbraní všech druhů.',
-    avatar: '🪓',
+    avatar: '⚒️',
     image: 'art/hero_mercenary.jpg',
     baseStrength: 6,
     baseWill: 3,
     baseGold: 10,
     startTileId: 0, // Pevnost
+    guilds: ['fortress', 'guild'],
     passiveAbility: 'Válečná kořist: Po každém vítězném boji získává +1 Zlaťák navíc.',
   },
   {
@@ -129,6 +138,7 @@ export const HERO_CLASSES: HeroClass[] = [
     baseWill: 7,
     baseGold: 5,
     startTileId: 12, // Magická Věž
+    guilds: ['tower', 'guild'],
     passiveAbility: 'Pohlcení duše: Při porážce nepřítele v mentálním boji obnoví 2 Vůle.',
   },
 ]
