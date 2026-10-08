@@ -87,4 +87,5 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Codex · Mobilní porovnání zdrojů obou hráčů nahradilo duplicitní lišty; akce tahu přesunuty do dosahu, mapa se posouvá jen vodorovně, ověřeno v lokálním hotseat na 360×640, 390×844 a 844×390 · hotovo
 2026-10-08 · Antigravity · Implementace Singleplayeru proti AI botovi (inteligentní rozhodování, trénink, nákupy, sférické souboje), uložení online sezení do localStorage a automatické obnovení partie po reloadu · hotovo
 2026-10-08 · Antigravity · Zjednodušení připojení přes odkaz (přímá dedikovaná pozvánka, předvyplněná místnost a výběr postavy bez bloudění v lobby) · hotovo
+2026-10-08 · Antigravity · Pravidlové omezení na 1 akci/kartu na poli za tah, jasné fázování tahu (Pohyb -> Akce -> Dokončeno) a automatické předání tahu po vyčerpání možností · hotovo
 

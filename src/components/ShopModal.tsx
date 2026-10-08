@@ -10,6 +10,7 @@ interface ShopModalProps {
   onTrainStat: (stat: 'strength' | 'will') => void
   onHeal: () => void
   onClose: () => void
+  onFinishTurn?: () => void
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({
@@ -20,6 +21,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onTrainStat,
   onHeal,
   onClose,
+  onFinishTurn,
 }) => {
   const isCity = tileTerrain === 'city'
   const isTraining = tileTerrain === 'training'
@@ -173,6 +175,29 @@ export const ShopModal: React.FC<ShopModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Modal Footer Actions */}
+        <div className="pt-3 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-2.5 mt-2">
+          <p className="text-[11px] text-stone-400">
+            💡 Podle pravidel deskovky návštěvou místa vyčerpáš svou 1 akci pro tento tah.
+          </p>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-xl cursor-pointer transition-all"
+            >
+              ✕ Jen prohlédnout
+            </button>
+            <button
+              type="button"
+              onClick={onFinishTurn || onClose}
+              className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-lg transition-all"
+            >
+              ✅ Dokončit akci & předat tah
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

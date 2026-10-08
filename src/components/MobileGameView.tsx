@@ -49,7 +49,7 @@ export function MobileGameView({
   const trackRef = useRef<HTMLDivElement>(null)
   const activePlayer = game.players[game.activePlayerIndex]
   const currentTile = BOARD_TILES[activePlayer.currentTileId]
-  const canActOnTile = isMyTurn && game.phase === 'TILE_ACTION'
+  const canActOnTile = isMyTurn && game.phase === 'TILE_ACTION' && !hasCompletedTileAction
   const shopAvailable = ['city', 'training', 'temple', 'camp', 'castle'].includes(currentTile.terrain)
   const ownPlayerIndex = isOnline && mySeat === 'p2' ? 1 : 0
   const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
@@ -117,25 +117,138 @@ export function MobileGameView({
         <main className="mobile-main">
           {/* Turn status & dice section */}
           <section className="mobile-turn" aria-live="polite">
-            <div className="mobile-section-label">{isMyTurn ? 'TVŮJ TAH' : 'TAH SOUPEŘE'} <span>{!hasRolledForMove ? '1 / 2 · POHYB' : '2 / 2 · AKCE'}</span></div>
+            <div className="mobile-section-label">
+              {isMyTurn ? (
+                <span className="text-emerald-400 font-black">🟢 TVŮJ TAH</span>
+              ) : (
+                <span className="text-amber-400 font-black">⏳ TAH SOUPEŘE</span>
+              )}
+              <span>
+                {!isMyTurn
+                  ? `ČEKÁ SE NA ${activePlayer.name.toUpperCase()}`
+                  : !hasRolledForMove
+                  ? 'KROK 1 / 2 · POHYB'
+                  : !hasCompletedTileAction
+                  ? 'KROK 2 / 2 · AKCE NA POLI'
+                  : '✅ AKCE DOKONČENA · PŘEDÁVÁM TAH'}
+              </span>
+            </div>
             {!isMyTurn ? (
-              <div className="mobile-wait"><Swords size={22} /><div><strong>Hraje {activePlayer.name}</strong><p>Jeho tah uvidíš tady živě. Mezitím si můžeš prohlédnout plán a hrdiny.</p></div></div>
+              <div className="mobile-wait">
+                <Swords size={22} />
+                <div>
+                  <strong>Hraje {activePlayer.name}</strong>
+                  <p>Jeho tah probíhá živě na plánu. Jakmile skončí, budeš na řadě.</p>
+                </div>
+              </div>
             ) : !hasRolledForMove ? (
-              <div className="mobile-dice"><div><strong>Vydej se na cestu</strong><p>Zvol směr. Po hodu tě hra automaticky přesune o součet obou kostek.</p></div><div className="mobile-direction" role="group" aria-label="Směr pohybu"><button type="button" className={direction === 'cw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('cw')}>↻ Po směru</button><button type="button" className={direction === 'ccw' ? 'is-active cursor-pointer' : 'cursor-pointer'} onClick={() => setDirection('ccw')}>↺ Proti směru</button></div><DiceRoller onRollComplete={(dice) => onRollDice(dice, direction)} label="Hodit a jít" /></div>
+              <div className="mobile-dice">
+                <div>
+                  <strong>Jsi na tahu! Zvol směr a hoď kostkami</strong>
+                  <p>Po hodu tě hra automaticky posune o součet obou kostek.</p>
+                </div>
+                <div className="mobile-direction" role="group" aria-label="Směr pohybu">
+                  <button
+                    type="button"
+                    className={direction === 'cw' ? 'is-active cursor-pointer' : 'cursor-pointer'}
+                    onClick={() => setDirection('cw')}
+                  >
+                    ↻ Po směru
+                  </button>
+                  <button
+                    type="button"
+                    className={direction === 'ccw' ? 'is-active cursor-pointer' : 'cursor-pointer'}
+                    onClick={() => setDirection('ccw')}
+                  >
+                    ↺ Proti směru
+                  </button>
+                </div>
+                <DiceRoller onRollComplete={(dice) => onRollDice(dice, direction)} label="Hodit a jít" />
+              </div>
+            ) : hasCompletedTileAction ? (
+              <div className="mobile-completed-box animate-in fade-in duration-200">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl shrink-0">✅</span>
+                  <div>
+                    <strong className="text-emerald-300 font-serif text-base">Akce na poli dokončena!</strong>
+                    <p className="text-xs text-stone-300 mt-0.5">
+                      Všechny možnosti pro tento tah byly vyčerpány. Předávám tah soupeři...
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onEndTurn}
+                  className="mobile-end-turn is-urgent cursor-pointer"
+                >
+                  Předat tah hned ⏩
+                </button>
+              </div>
             ) : (
-              <div className="mobile-prompt"><strong>Co podnikneš v {currentTile.name}?</strong><p>Hod {lastDiceRoll?.[0]} + {lastDiceRoll?.[1]} = {(lastDiceRoll?.[0] || 0) + (lastDiceRoll?.[1] || 0)}. Vyber akci, nebo předej tah.</p>{!hasCompletedTileAction && <button type="button" className="mobile-switch cursor-pointer" onClick={onSwitchDirection}>↩ Raději jít na pole {alternateTile.id}: {alternateTile.name}</button>}</div>
+              <div className="mobile-prompt">
+                <strong>Co podnikneš v {currentTile.name}?</strong>
+                <p>
+                  Hod {lastDiceRoll?.[0]} + {lastDiceRoll?.[1]} = {(lastDiceRoll?.[0] || 0) + (lastDiceRoll?.[1] || 0)}.
+                  V tomto tahu smíš provést <strong>právě 1 akci</strong> (karta, nákup nebo odpočinek).
+                </p>
+                <button
+                  type="button"
+                  className="mobile-switch cursor-pointer"
+                  onClick={onSwitchDirection}
+                >
+                  ↩ Raději jít na pole {alternateTile.id}: {alternateTile.name}
+                </button>
+              </div>
             )}
           </section>
 
           {/* Tile actions */}
-          {canActOnTile && <section className="mobile-actions" aria-label="Akce na aktuálním poli">
-            <div className="mobile-section-label">AKCE NA POLI</div>
-            {shopAvailable && <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🏪</span><span><strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong><small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small></span><ChevronRight size={18} /></button>}
-            {currentTile.hasAstralGate && <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌀</span><span><strong>Vstoupit do astrální sféry</strong><small>Vyzvat strážce a získat artefakt</small></span><ChevronRight size={18} /></button>}
-            <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🎴</span><span><strong>Tahat kartu dobrodružství</strong><small>Událost, poklad nebo souboj</small></span><ChevronRight size={18} /></button>
-            <button type="button" onClick={onRest} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌿</span><span><strong>Odpočinout si</strong><small>Obnovit 1 Sílu nebo 1 Vůli</small></span><ChevronRight size={18} /></button>
-            <button type="button" onClick={onEndTurn} className="mobile-end-turn cursor-pointer">Ukončit tah a předat hru <ChevronRight size={18} /></button>
-          </section>}
+          {canActOnTile && (
+            <section className="mobile-actions" aria-label="Akce na aktuálním poli">
+              <div className="mobile-section-label">
+                AKCE NA POLI <span>ZVOL PRÁVĚ 1 AKCI</span>
+              </div>
+              {shopAvailable && (
+                <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer">
+                  <span className="mobile-action-icon">🏪</span>
+                  <span>
+                    <strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong>
+                    <small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              )}
+              {currentTile.hasAstralGate && (
+                <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer">
+                  <span className="mobile-action-icon">🌀</span>
+                  <span>
+                    <strong>Vstoupit do astrální sféry</strong>
+                    <small>Vyzvat strážce a získat artefakt</small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              )}
+              <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer">
+                <span className="mobile-action-icon">🎴</span>
+                <span>
+                  <strong>Tahat kartu dobrodružství (1× za tah)</strong>
+                  <small>Událost, poklad nebo souboj s netvorem v divočině</small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+              <button type="button" onClick={onRest} className="mobile-action cursor-pointer">
+                <span className="mobile-action-icon">🌿</span>
+                <span>
+                  <strong>Odpočinout si</strong>
+                  <small>Obnovit 1 Sílu nebo 1 Vůli</small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+              <button type="button" onClick={onEndTurn} className="mobile-end-turn cursor-pointer">
+                Přeskočit akce a předat hru <ChevronRight size={18} />
+              </button>
+            </section>
+          )}
 
           {/* Grand Prophecy Quest Tracker Banner */}
           <section className="mobile-quest-banner" aria-label="Cíl hry: 4 z 5 astrálních artefaktů">

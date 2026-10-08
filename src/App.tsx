@@ -805,6 +805,30 @@ export const App: React.FC = () => {
     currentTile,
   ])
 
+  // Step 4: Human player auto-end turn when all tile actions are completed
+  useEffect(() => {
+    if (appScreen !== 'GAME' || activePlayer.isAI || !isMyTurn || game.winner) return
+    if (!hasCompletedTileAction) return
+
+    let isMounted = true
+    const timer = setTimeout(() => {
+      if (!isMounted) return
+      handleEndTurn()
+    }, 1500)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timer)
+    }
+  }, [
+    appScreen,
+    activePlayer.isAI,
+    isMyTurn,
+    game.winner,
+    hasCompletedTileAction,
+    game.activePlayerIndex,
+  ])
+
   // If user is on Lobby Screen, render LobbyScreen
   if (appScreen === 'LOBBY') {
     return (
@@ -900,9 +924,12 @@ export const App: React.FC = () => {
           onLearnSkill={handleLearnSkill}
           onTrainStat={handleTrainStat}
           onHeal={handleHeal}
-          onClose={() => {
+          onFinishTurn={() => {
             setShowShop(false)
             setHasCompletedTileAction(true)
+          }}
+          onClose={() => {
+            setShowShop(false)
           }}
         />
       )}
