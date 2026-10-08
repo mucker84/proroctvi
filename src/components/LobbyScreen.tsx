@@ -375,7 +375,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
             {activeTab === 'ai' && (
               <div className="flex flex-col gap-5">
                 <p className="text-xs text-stone-400 leading-relaxed m-0">
-                  Hraj sám proti počítačem řízenému hrdinovi (AI). Bot automaticky hází kostkami, nakupuje na tržištích, léčí se v chrámech a vyzývá strážce sfér k boji.
+                  Hraj sám proti počítačem řízenému hrdinovi (AI). Bot si sám volí pohyb, nakupuje na tržištích, léčí se v chrámech a vyzývá strážce sfér k boji.
                 </p>
 
                 <div className="flex flex-col gap-3.5">

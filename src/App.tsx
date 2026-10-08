@@ -39,6 +39,18 @@ import {
   SphereElement,
 } from './engine/types'
 
+// Neporažený netvor zůstává ležet na poli (pravidla ALTAR, Prohra/Remíza v boji s nestvůrou)
+const withTileMonster = (
+  tileMonsters: GameState['tileMonsters'],
+  tileId: number,
+  card: AdventureCard | null
+): Record<number, AdventureCard> => {
+  const next = { ...(tileMonsters || {}) }
+  if (card) next[tileId] = card
+  else delete next[tileId]
+  return next
+}
+
 export const App: React.FC = () => {
   const [appScreen, setAppScreen] = useState<'LOBBY' | 'GAME'>('LOBBY')
   const [game, setGame] = useState<GameState>(() => createInitialGame())
@@ -47,6 +59,7 @@ export const App: React.FC = () => {
   const [showShop, setShowShop] = useState(false)
   const [drawnCard, setDrawnCard] = useState<AdventureCard | null>(null)
   const [activeCombat, setActiveCombat] = useState<CombatState | null>(null)
+  const [combatCard, setCombatCard] = useState<AdventureCard | null>(null)
   const [hasMoved, setHasMoved] = useState(false)
   const [hasCompletedTileAction, setHasCompletedTileAction] = useState(false)
   const [claimedSpheres, setClaimedSpheres] = useState<Record<SphereElement, string | null>>({
@@ -246,6 +259,23 @@ export const App: React.FC = () => {
     setAppScreen('LOBBY')
   }
 
+  // Ukončení rozehrané partie a návrat do úvodního lobby (online i lokální)
+  const handleQuitGame = () => {
+    const question = isOnline
+      ? 'Opustit online hru? Vrátíš se do lobby a můžeš se připojit k jiné místnosti.'
+      : 'Ukončit rozehranou hru a vrátit se do lobby?'
+    if (!window.confirm(question)) return
+    setDrawnCard(null)
+    setActiveCombat(null)
+    setCombatCard(null)
+    setShowShop(false)
+    setHasMoved(false)
+    setHasCompletedTileAction(false)
+    setClaimedSpheres({ fire: null, ice: null, shadow: null, storm: null, magic: null })
+    setGame(createInitialGame())
+    handleLeaveRoom()
+  }
+
   // Tactical movement (walk, horse, ship, gate, stay)
   const handleExecuteMove = (targetTileId: number, costGold: number, moveType: string) => {
     if (!isMyTurn) return
@@ -279,13 +309,20 @@ export const App: React.FC = () => {
       logAction = `${currentPlayer.name} došel pěšky na pole #${targetTileId} (${targetTile.name}).`
     }
 
+    // Neporažený netvor na cílovém poli napadne příchozího
+    const lyingMonster = game.tileMonsters?.[targetTileId]
+    const log = lyingMonster
+      ? [`👹 Na poli #${targetTileId} číhá neporažený ${lyingMonster.name}!`, logAction, ...game.gameLog.slice(0, 14)]
+      : [logAction, ...game.gameLog.slice(0, 15)]
+
     const nextState: GameState = {
       ...game,
       players: updatedPlayers,
       phase: 'TILE_ACTION',
-      gameLog: [logAction, ...game.gameLog.slice(0, 15)],
+      gameLog: log,
     }
     pushStateUpdate(nextState)
+    if (lyingMonster) setDrawnCard(lyingMonster)
   }
 
   // Work or training instead of movement
@@ -368,6 +405,12 @@ export const App: React.FC = () => {
   const handleDrawCard = () => {
     if (!isMyTurn) return
 
+    const lyingMonster = game.tileMonsters?.[currentTile.id]
+    if (lyingMonster) {
+      setDrawnCard(lyingMonster)
+      return
+    }
+
     const terrain = currentTile.terrain
     const cardTerrain =
       terrain === 'forest' || terrain === 'mountain' || terrain === 'plains' || terrain === 'water'
@@ -411,6 +454,7 @@ export const App: React.FC = () => {
     pushStateUpdate(nextState)
 
     setActiveCombat(combat)
+    setCombatCard(drawnCard)
     setDrawnCard(null)
   }
 
@@ -428,6 +472,7 @@ export const App: React.FC = () => {
     const initialMode: 'physical' | 'mental' = sphere.guardian.combatType === 'mental' ? 'mental' : 'physical'
     const combat = startCombatWithMonster(sphere.guardian, true, initialMode, false)
     setActiveCombat(combat)
+    setCombatCard(null)
   }
 
   // Resolve combat end
@@ -436,6 +481,10 @@ export const App: React.FC = () => {
 
     const updatedPlayers = [...game.players]
     const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    const battleTileId = currentPlayer.currentTileId
+    const tileMonsters = combatCard
+      ? withTileMonster(game.tileMonsters, battleTileId, playerWon ? null : combatCard)
+      : game.tileMonsters
 
     if (playerWon) {
       currentPlayer.gold += activeCombat.enemy.rewardGold
@@ -469,15 +518,19 @@ export const App: React.FC = () => {
       ...game,
       players: updatedPlayers,
       winner,
+      tileMonsters,
       gameLog: [
         playerWon
           ? `${currentPlayer.name} porazil ${activeCombat.enemy.name}! (+${activeCombat.enemy.rewardGold} zl., +${activeCombat.enemy.rewardExp} exp)`
-          : `${currentPlayer.name} padl v boji. Obrodil se ve městě (-50 % zlaťáků za vzkříšení).`,
+          : `${currentPlayer.name} padl v boji. Obrodil se ve městě (-50 % zlaťáků za vzkříšení).${
+              combatCard ? ` ${activeCombat.enemy.name} dál číhá na poli #${battleTileId}.` : ''
+            }`,
         ...game.gameLog.slice(0, 15),
       ],
     }
 
     setActiveCombat(null)
+    setCombatCard(null)
     setHasCompletedTileAction(true)
     pushStateUpdate(nextState)
   }
@@ -490,12 +543,18 @@ export const App: React.FC = () => {
     const nextState: GameState = {
       ...game,
       players: updatedPlayers,
+      tileMonsters: combatCard
+        ? withTileMonster(game.tileMonsters, currentPlayer.currentTileId, combatCard)
+        : game.tileMonsters,
       gameLog: [
-        `${currentPlayer.name} včas uprchl ze souboje s ${activeCombat.enemy.name} a zachránil si život.`,
+        `${currentPlayer.name} včas uprchl ze souboje s ${activeCombat.enemy.name} a zachránil si život.${
+          combatCard ? ` Netvor dál číhá na poli #${currentPlayer.currentTileId}.` : ''
+        }`,
         ...game.gameLog.slice(0, 15),
       ],
     }
     setActiveCombat(null)
+    setCombatCard(null)
     setHasCompletedTileAction(true)
     pushStateUpdate(nextState)
   }
@@ -715,10 +774,13 @@ export const App: React.FC = () => {
     if (hasMoved && !hasCompletedTileAction) {
       const timer = setTimeout(() => {
         if (!isMounted) return
-        const action = decideAITileAction(activePlayer, currentTile, claimedSpheres)
+        // Neporažený netvor na poli napadne i bota, než udělá cokoli jiného
+        const lyingMonster = game.tileMonsters?.[currentTile.id]
+        const action = lyingMonster ? 'draw_card' : decideAITileAction(activePlayer, currentTile, claimedSpheres)
         const updatedPlayers = [...game.players]
         const bot = { ...updatedPlayers[game.activePlayerIndex] }
         let logMsg = ''
+        let tileMonsters = game.tileMonsters
 
         if (action === 'heal') {
           bot.gold = Math.max(0, bot.gold - 2)
@@ -779,7 +841,7 @@ export const App: React.FC = () => {
             currentTile.terrain === 'water'
               ? currentTile.terrain
               : 'forest'
-          const card = drawCardForTerrain(terrain)
+          const card = lyingMonster || drawCardForTerrain(terrain)
 
           if (card.type === 'treasure') {
             bot.gold += card.rewardGold || 0
@@ -790,6 +852,7 @@ export const App: React.FC = () => {
             bot.currentStrength = combatRes.newStrength
             bot.currentWill = combatRes.newWill
 
+            tileMonsters = withTileMonster(game.tileMonsters, currentTile.id, combatRes.playerWon ? null : card)
             if (combatRes.playerWon) {
               bot.gold += card.monster.rewardGold
               bot.experience += card.monster.rewardExp
@@ -799,7 +862,7 @@ export const App: React.FC = () => {
               bot.currentWill = bot.maxWill
               bot.currentTileId = bot.heroClass.startTileId
               bot.gold = Math.floor(bot.gold / 2)
-              logMsg = `💀 🤖 ${bot.name} podlehl v boji s ${card.monster.name} a obrodil se ve městě.`
+              logMsg = `💀 🤖 ${bot.name} podlehl v boji s ${card.monster.name} a obrodil se ve městě. Netvor dál číhá na poli #${currentTile.id}.`
             }
           }
         }
@@ -816,6 +879,7 @@ export const App: React.FC = () => {
           ...game,
           players: updatedPlayers,
           winner,
+          tileMonsters,
           gameLog: logMsg ? [logMsg, ...game.gameLog.slice(0, 15)] : game.gameLog,
         }
         pushStateUpdate(nextState)
@@ -927,7 +991,7 @@ export const App: React.FC = () => {
         onEndTurn={handleEndTurn}
         onRest={handleRest}
         onUseItem={handleUseItem}
-        onLobby={() => setAppScreen('LOBBY')}
+        onLobby={handleQuitGame}
       />
 
       {/* Modals */}
@@ -938,6 +1002,16 @@ export const App: React.FC = () => {
           onEngageCombat={handleEngageCombat}
           onClaimTreasure={handleClaimTreasure}
           onFlee={() => {
+            if (drawnCard.monster) {
+              pushStateUpdate({
+                ...game,
+                tileMonsters: withTileMonster(game.tileMonsters, activePlayer.currentTileId, drawnCard),
+                gameLog: [
+                  `${activePlayer.name} utekl před ${drawnCard.monster.name}. Netvor dál číhá na poli #${activePlayer.currentTileId}.`,
+                  ...game.gameLog.slice(0, 15),
+                ],
+              })
+            }
             setDrawnCard(null)
             setHasCompletedTileAction(true)
           }}

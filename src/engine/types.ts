@@ -185,4 +185,6 @@ export interface GameState {
   combat: CombatState | null
   gameLog: string[]
   winner: Player | null
+  /** Neporažení netvoři ležící na polích (klíč = id pole), podle pravidel ALTAR */
+  tileMonsters?: Record<number, AdventureCard>
 }

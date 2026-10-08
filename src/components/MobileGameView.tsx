@@ -57,6 +57,9 @@ export function MobileGameView({
   const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
   const inspectingPlayer = game.players.find((player) => player.id === inspectingPlayerId) ?? null
   const latestLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[0] : null
+  const tileMonsters = game.tileMonsters || {}
+  const lyingHere = tileMonsters[currentTile.id]
+  const lyingSelected = tileMonsters[selectedTile.id]
 
   const moveOptions = getTacticalMoveOptions(activePlayer, claimedSpheres)
   const walkOptions = moveOptions.filter((o) => o.type === 'walk' || o.type === 'stay')
@@ -99,8 +102,8 @@ export function MobileGameView({
           >
             ❓ Průvodce
           </button>
-          <button type="button" className="mobile-header-button cursor-pointer" onClick={onLobby}>
-            Lobby
+          <button type="button" className="mobile-header-button cursor-pointer" onClick={onLobby} title="Ukončit hru a vrátit se do lobby">
+            ✕ Ukončit hru
           </button>
         </div>
       </header>
@@ -397,10 +400,10 @@ export function MobileGameView({
                 </button>
               )}
               <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer">
-                <span className="mobile-action-icon">🎴</span>
+                <span className="mobile-action-icon">{lyingHere ? '👹' : '🎴'}</span>
                 <span>
-                  <strong>Tahat kartu dobrodružství (1× za tah)</strong>
-                  <small>Událost, poklad nebo souboj s netvorem v divočině</small>
+                  <strong>{lyingHere ? `Postavit se: ${lyingHere.name}` : 'Tahat kartu dobrodružství (1× za tah)'}</strong>
+                  <small>{lyingHere ? 'Neporažený netvor leží na tomto poli' : 'Událost, poklad nebo souboj s netvorem v divočině'}</small>
                 </span>
                 <ChevronRight size={18} />
               </button>
@@ -456,6 +459,11 @@ export function MobileGameView({
               <div>
                 <h1>{currentTile.name}</h1>
                 <p>{currentTile.description}</p>
+                {lyingHere?.monster && (
+                  <div className="mobile-scene-monster">
+                    👹 Číhá tu neporažený <strong>{lyingHere.name}</strong> · Síla {lyingHere.monster.strength} · Vůle {lyingHere.monster.will}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -484,7 +492,7 @@ export function MobileGameView({
                         }
                       }
                     }}
-                    className={`mobile-tile cursor-pointer ${
+                    className={`mobile-tile cursor-pointer ${tileMonsters[tile.id] ? 'has-monster' : ''} ${
                       tile.id === activePlayer.currentTileId ? 'is-current' : ''
                     } ${tile.id === selectedTile.id ? 'is-selected' : ''} ${
                       isReachable ? 'is-move' : ''
@@ -496,6 +504,11 @@ export function MobileGameView({
                     <strong>{tile.name}</strong>
                     {tile.hasPort && <span className="text-[10px]" title="Přístav">⛵</span>}
                     {tile.hasMagicGate && <span className="text-[10px]" title="Magická brána">🌀</span>}
+                    {tileMonsters[tile.id] && (
+                      <span className="mobile-tile-monster" title={`Neporažený netvor: ${tileMonsters[tile.id].name}`}>
+                        👹 {tileMonsters[tile.id].name}
+                      </span>
+                    )}
                     {isReachable && <span className="mobile-tile-go">ZVOLIT ›</span>}
                     {isHere && (
                       <span className="mobile-tile-pawns">
@@ -509,7 +522,7 @@ export function MobileGameView({
                 )
               })}
             </div>
-            {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p></div>}
+            {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p>{lyingSelected?.monster && <p className="mobile-tile-detail-monster">👹 Číhá tu neporažený {lyingSelected.name} (Síla {lyingSelected.monster.strength}, Vůle {lyingSelected.monster.will}). Kdo sem vstoupí, musí s ním bojovat.</p>}</div>}
           </section>
 
           {/* HERO HUD & INVENTORY SECTION (Always accessible on map!) */}

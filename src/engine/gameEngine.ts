@@ -67,6 +67,7 @@ export function createInitialGame(
     isDiceRolling: false,
     currentCard: null,
     combat: null,
+    tileMonsters: {},
     winner: null,
     gameLog: ['Hra Proroctví zahájena! Cílem je získat 4 z 5 magických artefaktů ze sfér.'],
   }

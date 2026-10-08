@@ -99,3 +99,4 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Antigravity · Implementace volby Boj silou vs. Boj vůlí (-2 Vůle) u inteligentních monster a strážců podle Chvátilových pravidel, dynamické srovnání šancí a zobrazení v intru · hotovo
 2026-10-08 · Antigravity · Přechod na oficiální 20-polový plán ALTAR a taktický pohyb hráče (Pěšky zdarma, Kůň za 1 zl, Loď za 1 zl, Brána za 2 zl, práce místo pohybu, žádné kostky na pohyb), 6x6 prstenec desky a aktualizace AI bota i intra · hotovo
 
+2026-10-08 · Claude Code · Neporažený netvor zůstává ležet na poli (útěk před kartou, útěk z boje, prohra) a napadne každého, kdo na pole vstoupí nebo na něm zůstane, včetně AI; odznak 👹 na plánu a v obrazu pole; tlačítko Ukončit hru (opustí online místnost, smaže uloženou session, návrat do lobby); nasazeno na 7ax.fun · hotovo
