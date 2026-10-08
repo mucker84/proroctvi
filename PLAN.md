@@ -97,4 +97,5 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 
 2026-10-08 · Codex · Přepracována mobilní karta dobrodružství a společné okno běžných i sférických soubojů: hrdina/nepřítel proti sobě, síla/vůle, výbava, kouzla a výsledek hodu; opraveno použití kouzel a průběžných hodnot, ověřen build, lint a lokální průchod kartou i kolem boje · hotovo
 2026-10-08 · Antigravity · Implementace volby Boj silou vs. Boj vůlí (-2 Vůle) u inteligentních monster a strážců podle Chvátilových pravidel, dynamické srovnání šancí a zobrazení v intru · hotovo
+2026-10-08 · Antigravity · Přechod na oficiální 20-polový plán ALTAR a taktický pohyb hráče (Pěšky zdarma, Kůň za 1 zl, Loď za 1 zl, Brána za 2 zl, práce místo pohybu, žádné kostky na pohyb), 6x6 prstenec desky a aktualizace AI bota i intra · hotovo
 

@@ -101,6 +101,19 @@ export interface BoardTile {
   description: string
   specialActionTitle?: string
   hasAstralGate?: SphereElement
+  hasPort?: boolean
+  hasMagicGate?: boolean
+  nearSphere?: SphereElement
+  isGuild?: boolean
+  workAction?: {
+    type: 'city_work' | 'guild_work' | 'fortress_training'
+    title: string
+    description: string
+    costHp?: number
+    costWill?: number
+    rewardGold?: number
+    rewardExp?: number
+  }
 }
 
 export interface HeroClass {

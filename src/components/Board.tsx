@@ -49,39 +49,38 @@ export const Board: React.FC<BoardProps> = ({
   selectedTileId,
   onSelectTile,
 }) => {
-  // 32 tiles arranged around a rectangle/ring
-  // 10 tiles top, 6 tiles right, 10 tiles bottom, 6 tiles left = 32 tiles!
+  // 20 tiles arranged around a 6x6 ring:
+  // 6 tiles top (0..5), 4 tiles right (6..9), 6 tiles bottom (10..15), 4 tiles left (16..19)
   const getTileGridPosition = (id: number) => {
-    if (id >= 0 && id <= 9) {
-      // Top row: 0 to 9 (left to right)
+    if (id >= 0 && id <= 5) {
+      // Top row: 0 to 5 (left to right)
       return { col: id + 1, row: 1 }
+    } else if (id >= 6 && id <= 9) {
+      // Right col: 6 to 9 (top to bottom)
+      return { col: 6, row: id - 6 + 2 }
     } else if (id >= 10 && id <= 15) {
-      // Right col: 10 to 15 (top to bottom)
-      return { col: 10, row: id - 9 + 1 }
-    } else if (id >= 16 && id <= 25) {
-      // Bottom row: 16 to 25 (right to left)
-      return { col: 10 - (id - 16), row: 8 }
+      // Bottom row: 10 to 15 (right to left)
+      return { col: 6 - (id - 10), row: 6 }
     } else {
-      // Left col: 26 to 31 (bottom to top)
-      return { col: 1, row: 8 - (id - 25) }
+      // Left col: 16 to 19 (bottom to top)
+      return { col: 1, row: 6 - (id - 16 + 1) }
     }
   }
 
   return (
     <div className="relative w-full max-w-6xl mx-auto p-4 select-none">
-      {/* 32-Tile Grid Track */}
+      {/* 20-Tile 6x6 Grid Track */}
       <div
-        className="grid grid-cols-10 grid-rows-8 gap-2 bg-stone-950/80 p-4 rounded-3xl border-2 border-stone-800 shadow-2xl backdrop-blur-md"
-        style={{ minHeight: '620px' }}
+        className="grid grid-cols-6 grid-rows-6 gap-2 bg-stone-950/80 p-4 rounded-3xl border-2 border-stone-800 shadow-2xl backdrop-blur-md"
+        style={{ minHeight: '580px' }}
       >
-        {/* Render 32 Board Tiles */}
+        {/* Render 20 Board Tiles */}
         {BOARD_TILES.map((tile) => {
           const pos = getTileGridPosition(tile.id)
           const style = getTerrainStyle(tile.terrain)
           const isValidMove = validMoves.includes(tile.id)
           const isSelected = selectedTileId === tile.id
           const playersOnTile = players.filter((p) => p.currentTileId === tile.id)
-          const isCurrentActivePlayerHere = activePlayer.currentTileId === tile.id
 
           return (
             <button
@@ -96,7 +95,7 @@ export const Board: React.FC<BoardProps> = ({
                 gridColumn: pos.col,
                 gridRow: pos.row,
               }}
-              className={`relative flex flex-col items-center justify-between p-1.5 rounded-xl border-2 transition-all cursor-pointer text-left overflow-hidden h-20 ${
+              className={`relative flex flex-col items-center justify-between p-1.5 rounded-xl border-2 transition-all cursor-pointer text-left overflow-hidden h-22 ${
                 style.bg
               } ${style.border} ${
                 isValidMove
@@ -104,10 +103,15 @@ export const Board: React.FC<BoardProps> = ({
                   : ''
               } ${isSelected ? 'ring-2 ring-white z-10' : ''} hover:scale-105`}
             >
-              {/* Tile Header: ID and Terrain icon */}
+              {/* Tile Header: ID, Port/Gate icon and Terrain icon */}
               <div className="w-full flex items-center justify-between text-[11px] font-bold">
                 <span className="text-stone-400 font-mono">#{tile.id}</span>
-                <span title={tile.terrain}>{style.icon}</span>
+                <div className="flex items-center gap-1">
+                  {tile.hasPort && <span title="Přístav (cesta lodí za 1 zl)">⛵</span>}
+                  {tile.hasMagicGate && <span title="Magická brána (teleport za 2 zl)">🌀</span>}
+                  {tile.isGuild && <span title="Cechovní výcvik">🏛️</span>}
+                  <span title={tile.terrain}>{style.icon}</span>
+                </div>
               </div>
 
               {/* Tile Name */}
@@ -115,11 +119,11 @@ export const Board: React.FC<BoardProps> = ({
                 {tile.name}
               </div>
 
-              {/* Astral Gate indicator */}
-              {tile.hasAstralGate && (
+              {/* Near Sphere or Astral Gate indicator */}
+              {(tile.hasAstralGate || tile.nearSphere) && (
                 <div
                   className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full bg-purple-400 animate-ping"
-                  title={`Brána: ${tile.hasAstralGate}`}
+                  title={`Sféra: ${tile.hasAstralGate || tile.nearSphere}`}
                 />
               )}
 
@@ -145,7 +149,7 @@ export const Board: React.FC<BoardProps> = ({
 
         {/* Center of the Board: The 5 Astral Spheres & Kingdom Heart */}
         <div
-          className="col-start-2 col-end-10 row-start-2 row-end-8 bg-stone-900/80 rounded-2xl border border-stone-800 p-6 flex flex-col justify-between items-center relative overflow-hidden backdrop-blur-sm shadow-inner"
+          className="col-start-2 col-end-6 row-start-2 row-end-6 bg-stone-900/80 rounded-2xl border border-stone-800 p-5 flex flex-col justify-between items-center relative overflow-hidden backdrop-blur-sm shadow-inner"
         >
           {/* Background Map Artwork */}
           <div

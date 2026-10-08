@@ -11,10 +11,11 @@ import { ASTRAL_SPHERES } from './data/spheres'
 import {
   createInitialGame,
   drawCardForTerrain,
+  getTacticalMoveOptions,
   startCombatWithMonster,
 } from './engine/gameEngine'
 import {
-  decideAIDirection,
+  decideAIMovement,
   decideAITileAction,
   pickAIBestItem,
   resolveAICombat,
@@ -46,11 +47,8 @@ export const App: React.FC = () => {
   const [showShop, setShowShop] = useState(false)
   const [drawnCard, setDrawnCard] = useState<AdventureCard | null>(null)
   const [activeCombat, setActiveCombat] = useState<CombatState | null>(null)
-  const [hasRolledForMove, setHasRolledForMove] = useState(false)
+  const [hasMoved, setHasMoved] = useState(false)
   const [hasCompletedTileAction, setHasCompletedTileAction] = useState(false)
-  const [lastDiceRoll, setLastDiceRoll] = useState<[number, number] | null>(null)
-  const [lastDirection, setLastDirection] = useState<'cw' | 'ccw'>('cw')
-  const [tileBeforeRoll, setTileBeforeRoll] = useState<number>(0)
   const [claimedSpheres, setClaimedSpheres] = useState<Record<SphereElement, string | null>>({
     fire: null,
     ice: null,
@@ -248,78 +246,82 @@ export const App: React.FC = () => {
     setAppScreen('LOBBY')
   }
 
-  // Automatic move after dice roll
-  const handleRollDiceAndMove = (dice: [number, number], direction: 'cw' | 'ccw') => {
+  // Tactical movement (walk, horse, ship, gate, stay)
+  const handleExecuteMove = (targetTileId: number, costGold: number, moveType: string) => {
     if (!isMyTurn) return
 
-    const totalSteps = dice[0] + dice[1]
-    const startTileId = activePlayer.currentTileId
-    setTileBeforeRoll(startTileId)
+    const updatedPlayers = [...game.players]
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
 
-    const targetTileId =
-      direction === 'cw'
-        ? (startTileId + totalSteps) % BOARD_TILES.length
-        : (startTileId - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
+    if (costGold > 0) {
+      if (currentPlayer.gold < costGold) return
+      currentPlayer.gold -= costGold
+    }
+    currentPlayer.currentTileId = targetTileId
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
 
     const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
-
-    const updatedPlayers = [...game.players]
-    updatedPlayers[game.activePlayerIndex] = {
-      ...updatedPlayers[game.activePlayerIndex],
-      currentTileId: targetTileId,
-    }
-
-    setLastDiceRoll(dice)
-    setLastDirection(direction)
-    setHasRolledForMove(true)
+    setHasMoved(true)
     setHasCompletedTileAction(false)
     setSelectedTile(targetTile)
     setValidMoves([])
 
+    let logAction = ''
+    if (moveType === 'horse') {
+      logAction = `${currentPlayer.name} jel na koni na pole #${targetTileId} (${targetTile.name}) (-1 🪙 zl).`
+    } else if (moveType === 'ship') {
+      logAction = `${currentPlayer.name} se přeplavil lodí do přístavu #${targetTileId} (${targetTile.name}) (-1 🪙 zl).`
+    } else if (moveType === 'gate') {
+      logAction = `${currentPlayer.name} prošel magickou bránou na pole #${targetTileId} (${targetTile.name}) (-2 🪙 zl).`
+    } else if (moveType === 'stay') {
+      logAction = `${currentPlayer.name} zůstává na poli #${targetTileId} (${targetTile.name}).`
+    } else {
+      logAction = `${currentPlayer.name} došel pěšky na pole #${targetTileId} (${targetTile.name}).`
+    }
+
     const nextState: GameState = {
       ...game,
       players: updatedPlayers,
-      diceValues: dice,
       phase: 'TILE_ACTION',
-      gameLog: [
-        `${activePlayer.name} hodil ${totalSteps} (🎲 ${dice[0]} + ${dice[1]}) a dorazil na pole #${targetTileId} (${targetTile.name}).`,
-        ...game.gameLog.slice(0, 15),
-      ],
+      gameLog: [logAction, ...game.gameLog.slice(0, 15)],
     }
     pushStateUpdate(nextState)
   }
 
-  // Switch direction to the opposite tile
-  const handleSwitchDirection = () => {
-    if (!isMyTurn || !lastDiceRoll) return
-
-    const totalSteps = lastDiceRoll[0] + lastDiceRoll[1]
-    const newDir: 'cw' | 'ccw' = lastDirection === 'cw' ? 'ccw' : 'cw'
-
-    const altTileId =
-      newDir === 'cw'
-        ? (tileBeforeRoll + totalSteps) % BOARD_TILES.length
-        : (tileBeforeRoll - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
-
-    const targetTile = BOARD_TILES.find((t) => t.id === altTileId) || BOARD_TILES[0]
+  // Work or training instead of movement
+  const handleWorkAction = (type: 'city_work' | 'guild_work' | 'fortress_training') => {
+    if (!isMyTurn) return
 
     const updatedPlayers = [...game.players]
-    updatedPlayers[game.activePlayerIndex] = {
-      ...updatedPlayers[game.activePlayerIndex],
-      currentTileId: altTileId,
+    const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    let logAction = ''
+
+    if (type === 'city_work') {
+      if (currentPlayer.currentWill < 1) return
+      currentPlayer.currentWill -= 1
+      currentPlayer.gold += 2
+      logAction = `${currentPlayer.name} vykonal odbornou práci ve městě (-1 Vůle, +2 🪙 zl).`
+    } else if (type === 'guild_work') {
+      if (currentPlayer.currentStrength <= 1) return
+      currentPlayer.currentStrength -= 1
+      currentPlayer.gold += 3
+      logAction = `${currentPlayer.name} splnil špinavou práci pro Gildu (-1 Síla, +3 🪙 zl).`
+    } else if (type === 'fortress_training') {
+      if (currentPlayer.currentStrength <= 1) return
+      currentPlayer.currentStrength -= 1
+      currentPlayer.experience += 2
+      logAction = `${currentPlayer.name} podstoupil tvrdý dril v Pevnosti (-1 Síla, +2 ⭐ exp).`
     }
 
-    setLastDirection(newDir)
-    setSelectedTile(targetTile)
+    updatedPlayers[game.activePlayerIndex] = currentPlayer
+    setHasMoved(true)
+    setHasCompletedTileAction(true)
 
     const nextState: GameState = {
       ...game,
       players: updatedPlayers,
       phase: 'TILE_ACTION',
-      gameLog: [
-        `${activePlayer.name} změnil směr chůze a přešel na pole #${altTileId} (${targetTile.name}).`,
-        ...game.gameLog.slice(0, 15),
-      ],
+      gameLog: [logAction, ...game.gameLog.slice(0, 15)],
     }
     pushStateUpdate(nextState)
   }
@@ -632,9 +634,8 @@ export const App: React.FC = () => {
   const handleEndTurn = () => {
     if (!isMyTurn && !activePlayer.isAI) return
 
-    setHasRolledForMove(false)
+    setHasMoved(false)
     setHasCompletedTileAction(false)
-    setLastDiceRoll(null)
     setValidMoves([])
     setDrawnCard(null)
 
@@ -661,43 +662,43 @@ export const App: React.FC = () => {
 
     let isMounted = true
 
-    // Step 1: AI rolls dice and moves
-    if (!hasRolledForMove) {
+    // Step 1: AI tactical movement choice (no dice)
+    if (!hasMoved) {
       const timer = setTimeout(() => {
         if (!isMounted) return
-        const d1 = Math.floor(Math.random() * 6) + 1
-        const d2 = Math.floor(Math.random() * 6) + 1
-        const dice: [number, number] = [d1, d2]
-        const dir = decideAIDirection(activePlayer, d1 + d2, claimedSpheres)
-
-        const startTileId = activePlayer.currentTileId
-        const totalSteps = d1 + d2
-        const targetTileId =
-          dir === 'cw'
-            ? (startTileId + totalSteps) % BOARD_TILES.length
-            : (startTileId - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
-        const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
-
+        const choice = decideAIMovement(activePlayer, claimedSpheres)
         const updatedPlayers = [...game.players]
-        updatedPlayers[game.activePlayerIndex] = {
-          ...updatedPlayers[game.activePlayerIndex],
-          currentTileId: targetTileId,
+        const bot = { ...updatedPlayers[game.activePlayerIndex] }
+
+        if (choice.type === 'enter_sphere') {
+          handleEnterSphere(choice.sphereId)
+          setHasMoved(true)
+          return
         }
 
-        setTileBeforeRoll(startTileId)
-        setLastDiceRoll(dice)
-        setLastDirection(dir)
-        setHasRolledForMove(true)
+        if (choice.type === 'work') {
+          handleWorkAction(choice.workType)
+          return
+        }
+
+        const cost = 'costGold' in choice ? choice.costGold : 0
+        if (cost > 0) {
+          bot.gold = Math.max(0, bot.gold - cost)
+        }
+        bot.currentTileId = choice.targetTileId
+        updatedPlayers[game.activePlayerIndex] = bot
+
+        const targetTile = BOARD_TILES.find((t) => t.id === choice.targetTileId) || BOARD_TILES[0]
+        setHasMoved(true)
         setHasCompletedTileAction(false)
         setSelectedTile(targetTile)
 
         const nextState: GameState = {
           ...game,
           players: updatedPlayers,
-          diceValues: dice,
           phase: 'TILE_ACTION',
           gameLog: [
-            `🤖 ${activePlayer.name} hodil 🎲 ${d1} + ${d2} (${totalSteps}) a postoupil na pole #${targetTileId} (${targetTile.name}).`,
+            `🤖 ${bot.name}: ${choice.label}.`,
             ...game.gameLog.slice(0, 15),
           ],
         }
@@ -711,7 +712,7 @@ export const App: React.FC = () => {
     }
 
     // Step 2: AI executes action on current tile
-    if (hasRolledForMove && !hasCompletedTileAction) {
+    if (hasMoved && !hasCompletedTileAction) {
       const timer = setTimeout(() => {
         if (!isMounted) return
         const action = decideAITileAction(activePlayer, currentTile, claimedSpheres)
@@ -841,7 +842,7 @@ export const App: React.FC = () => {
   }, [
     appScreen,
     activePlayer,
-    hasRolledForMove,
+    hasMoved,
     hasCompletedTileAction,
     game.winner,
     game.activePlayerIndex,
@@ -897,37 +898,37 @@ export const App: React.FC = () => {
     )
   }
 
-  const steps = lastDiceRoll ? lastDiceRoll[0] + lastDiceRoll[1] : 0
-  const altTileId =
-    lastDirection === 'cw'
-      ? (tileBeforeRoll - steps + BOARD_TILES.length) % BOARD_TILES.length
-      : (tileBeforeRoll + steps) % BOARD_TILES.length
-  const alternateTile = BOARD_TILES.find((t) => t.id === altTileId) || BOARD_TILES[0]
+  const currentValidMoves =
+    !hasMoved && isMyTurn
+      ? getTacticalMoveOptions(activePlayer, claimedSpheres)
+          .filter((o) => o.isAvailable && o.type !== 'work' && o.type !== 'enter_sphere')
+          .map((o) => o.targetTileId)
+      : []
 
   return (
     <>
-    <MobileGameView
-      game={game}
-      roomCode={roomCode}
-      isOnline={isOnline}
-      isMyTurn={isMyTurn}
-      mySeat={mySeat}
-      selectedTile={selectedTile}
-      hasRolledForMove={hasRolledForMove}
-      hasCompletedTileAction={hasCompletedTileAction}
-      lastDiceRoll={lastDiceRoll}
-      alternateTile={alternateTile}
-      onSelectTile={setSelectedTile}
-      onRollDice={handleRollDiceAndMove}
-      onSwitchDirection={handleSwitchDirection}
-      onDrawCard={handleDrawCard}
-      onOpenShop={() => setShowShop(true)}
-      onEnterSphere={handleEnterSphere}
-      onEndTurn={handleEndTurn}
-      onRest={handleRest}
-      onUseItem={handleUseItem}
-      onLobby={() => setAppScreen('LOBBY')}
-    />
+      <MobileGameView
+        game={game}
+        roomCode={roomCode}
+        isOnline={isOnline}
+        isMyTurn={isMyTurn}
+        mySeat={mySeat}
+        selectedTile={selectedTile}
+        hasMoved={hasMoved}
+        hasCompletedTileAction={hasCompletedTileAction}
+        claimedSpheres={claimedSpheres}
+        validMoves={currentValidMoves}
+        onSelectTile={setSelectedTile}
+        onExecuteMove={handleExecuteMove}
+        onWorkAction={handleWorkAction}
+        onDrawCard={handleDrawCard}
+        onOpenShop={() => setShowShop(true)}
+        onEnterSphere={handleEnterSphere}
+        onEndTurn={handleEndTurn}
+        onRest={handleRest}
+        onUseItem={handleUseItem}
+        onLobby={() => setAppScreen('LOBBY')}
+      />
 
       {/* Modals */}
       {drawnCard && (

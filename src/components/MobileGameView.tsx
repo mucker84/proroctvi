@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronRight, Compass, ScrollText, Sparkles, Swords, Users } from 'lucide-react'
 import { BOARD_TILES } from '../data/board'
 import { ASTRAL_SPHERES } from '../data/spheres'
-import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
+import { calculatePlayerAttack, calculatePlayerDefense, getTacticalMoveOptions } from '../engine/gameEngine'
 import type { BoardTile, GameState, Item, SphereElement } from '../engine/types'
-import { DiceRoller } from './DiceRoller'
 import { IntroGuideModal } from './IntroGuideModal'
 import { PlayerSheet } from './PlayerSheet'
 
@@ -17,13 +16,13 @@ interface MobileGameViewProps {
   isMyTurn: boolean
   mySeat: 'p1' | 'p2' | null
   selectedTile: BoardTile
-  hasRolledForMove: boolean
+  hasMoved: boolean
   hasCompletedTileAction: boolean
-  lastDiceRoll: [number, number] | null
-  alternateTile: BoardTile
+  claimedSpheres: Record<SphereElement, string | null>
+  validMoves: number[]
   onSelectTile: (tile: BoardTile) => void
-  onRollDice: (dice: [number, number], direction: 'cw' | 'ccw') => void
-  onSwitchDirection: () => void
+  onExecuteMove: (targetTileId: number, costGold: number, moveType: string) => void
+  onWorkAction: (type: 'city_work' | 'guild_work' | 'fortress_training') => void
   onDrawCard: () => void
   onOpenShop: () => void
   onEnterSphere: (sphereId: SphereElement) => void
@@ -40,25 +39,31 @@ const terrainIcon: Record<BoardTile['terrain'], string> = {
 
 export function MobileGameView({
   game, roomCode, isOnline, isMyTurn, mySeat, selectedTile,
-  hasRolledForMove, hasCompletedTileAction, lastDiceRoll, alternateTile,
-  onSelectTile, onRollDice, onSwitchDirection, onDrawCard,
+  hasMoved, hasCompletedTileAction, claimedSpheres, validMoves,
+  onSelectTile, onExecuteMove, onWorkAction, onDrawCard,
   onOpenShop, onEnterSphere, onEndTurn, onRest, onUseItem, onLobby,
 }: MobileGameViewProps) {
   const [tab, setTab] = useState<MobileTab>('map')
-  const [direction, setDirection] = useState<'cw' | 'ccw'>('cw')
   const [inspectingPlayerId, setInspectingPlayerId] = useState<string | null>(null)
   const [showIntro, setShowIntro] = useState<boolean>(
     () => localStorage.getItem('proroctvi_intro_seen') !== 'true'
   )
   const trackRef = useRef<HTMLDivElement>(null)
   const activePlayer = game.players[game.activePlayerIndex]
-  const currentTile = BOARD_TILES[activePlayer.currentTileId]
-  const canActOnTile = isMyTurn && game.phase === 'TILE_ACTION' && !hasCompletedTileAction
-  const shopAvailable = ['city', 'training', 'temple', 'camp', 'castle'].includes(currentTile.terrain)
+  const currentTile = BOARD_TILES[activePlayer.currentTileId] || BOARD_TILES[0]
+  const canActOnTile = isMyTurn && hasMoved && !hasCompletedTileAction
+  const shopAvailable = ['city', 'training', 'temple', 'camp', 'castle'].includes(currentTile.terrain) || !!currentTile.isGuild
   const ownPlayerIndex = isOnline && mySeat === 'p2' ? 1 : 0
   const hudPlayer = isOnline ? game.players[ownPlayerIndex] : activePlayer
   const inspectingPlayer = game.players.find((player) => player.id === inspectingPlayerId) ?? null
   const latestLog = game.gameLog && game.gameLog.length > 0 ? game.gameLog[0] : null
+
+  const moveOptions = getTacticalMoveOptions(activePlayer, claimedSpheres)
+  const walkOptions = moveOptions.filter((o) => o.type === 'walk' || o.type === 'stay')
+  const horseOptions = moveOptions.filter((o) => o.type === 'horse')
+  const travelOptions = moveOptions.filter((o) => o.type === 'ship' || o.type === 'gate')
+  const workOptions = moveOptions.filter((o) => o.type === 'work')
+  const sphereOptions = moveOptions.filter((o) => o.type === 'enter_sphere')
 
   const physAttack = calculatePlayerAttack(hudPlayer, 'physical', 0)
   const mentalAttack = calculatePlayerAttack(hudPlayer, 'mental', 0)
@@ -158,8 +163,8 @@ export function MobileGameView({
               <span>
                 {!isMyTurn
                   ? `ČEKÁ SE NA ${activePlayer.name.toUpperCase()}`
-                  : !hasRolledForMove
-                  ? 'KROK 1 / 2 · POHYB'
+                  : !hasMoved
+                  ? 'KROK 1 / 2 · VOLBA POHYBU (BEZ KOSTEK)'
                   : !hasCompletedTileAction
                   ? 'KROK 2 / 2 · AKCE NA POLI'
                   : '✅ AKCE DOKONČENA · PŘEDÁVÁM TAH'}
@@ -175,29 +180,166 @@ export function MobileGameView({
                   </p>
                 </div>
               </div>
-            ) : !hasRolledForMove ? (
-              <div className="mobile-dice">
+            ) : !hasMoved ? (
+              <div className="mobile-move-panel">
                 <div>
-                  <strong>Jsi na tahu! Zvol směr a hoď kostkami</strong>
-                  <p>Po hodu tě hra automaticky posune o součet obou kostek.</p>
+                  <strong className="text-[#fff3d8] font-serif text-base block">Zvol svůj pohyb (Žádné kostky!)</strong>
+                  <p className="text-xs text-stone-300 mt-1">
+                    Volíš si sám: Pěšky (zdarma), Kůň (1 zl), Loď (1 zl), Brána (2 zl) nebo akce místo pohybu.
+                  </p>
                 </div>
-                <div className="mobile-direction" role="group" aria-label="Směr pohybu">
-                  <button
-                    type="button"
-                    className={direction === 'cw' ? 'is-active cursor-pointer' : 'cursor-pointer'}
-                    onClick={() => setDirection('cw')}
-                  >
-                    ↻ Po směru
-                  </button>
-                  <button
-                    type="button"
-                    className={direction === 'ccw' ? 'is-active cursor-pointer' : 'cursor-pointer'}
-                    onClick={() => setDirection('ccw')}
-                  >
-                    ↺ Proti směru
-                  </button>
+
+                {/* Pěšky */}
+                <div className="mobile-move-group">
+                  <div className="mobile-move-group-title">
+                    <span>🚶 Pěšky (o 1 pole nebo na místě)</span>
+                    <span className="text-emerald-400 font-bold">Zdarma</span>
+                  </div>
+                  <div className="mobile-move-grid">
+                    {walkOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                        className="mobile-move-btn is-free"
+                      >
+                        <div className="mobile-move-btn-header">
+                          <span className="text-base">{opt.icon}</span>
+                          <span className="mobile-move-btn-cost text-emerald-400">0 zl</span>
+                        </div>
+                        <span className="mobile-move-btn-title">{opt.label}</span>
+                        <span className="mobile-move-btn-detail">{opt.detail}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <DiceRoller onRollComplete={(dice) => onRollDice(dice, direction)} label="Hodit a jít" />
+
+                {/* Na koni */}
+                <div className="mobile-move-group">
+                  <div className="mobile-move-group-title">
+                    <span>🐎 Na koni (o 2 pole)</span>
+                    <span className="text-amber-400 font-bold">1 🪙 zlaťák</span>
+                  </div>
+                  <div className="mobile-move-grid">
+                    {horseOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={!opt.isAvailable}
+                        title={opt.unavailableReason}
+                        onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                        className="mobile-move-btn is-horse"
+                      >
+                        <div className="mobile-move-btn-header">
+                          <span className="text-base">{opt.icon}</span>
+                          <span className="mobile-move-btn-cost text-amber-400">1 🪙</span>
+                        </div>
+                        <span className="mobile-move-btn-title">{opt.label}</span>
+                        <span className="mobile-move-btn-detail">{opt.detail}</span>
+                        {!opt.isAvailable && (
+                          <span className="text-[9px] text-red-400 font-semibold">{opt.unavailableReason}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cesta lodí & Magická brána */}
+                {travelOptions.length > 0 && (
+                  <div className="mobile-move-group">
+                    <div className="mobile-move-group-title">
+                      <span>⛵ Speciální doprava (Přístav & Brány)</span>
+                    </div>
+                    <div className="mobile-move-grid">
+                      {travelOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          disabled={!opt.isAvailable}
+                          title={opt.unavailableReason}
+                          onClick={() => onExecuteMove(opt.targetTileId, opt.costGold, opt.type)}
+                          className={`mobile-move-btn ${opt.type === 'ship' ? 'is-ship' : 'is-gate'}`}
+                        >
+                          <div className="mobile-move-btn-header">
+                            <span className="text-base">{opt.icon}</span>
+                            <span className="mobile-move-btn-cost text-amber-400">{opt.costGold} 🪙</span>
+                          </div>
+                          <span className="mobile-move-btn-title">{opt.label}</span>
+                          <span className="mobile-move-btn-detail">{opt.detail}</span>
+                          {!opt.isAvailable && (
+                            <span className="text-[9px] text-red-400 font-semibold">{opt.unavailableReason}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Akce místo pohybu (Práce ve městě, Výcvik v pevnosti, Špinavá práce) */}
+                {workOptions.length > 0 && (
+                  <div className="mobile-move-group">
+                    <div className="mobile-move-group-title">
+                      <span>🛠️ Akce místo pohybu</span>
+                      <span className="text-orange-400 font-bold">Vyčerpá tah</span>
+                    </div>
+                    <div className="mobile-move-grid">
+                      {workOptions.map((opt) => {
+                        const wType = opt.id.replace('work-', '') as 'city_work' | 'guild_work' | 'fortress_training'
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            disabled={!opt.isAvailable}
+                            title={opt.unavailableReason}
+                            onClick={() => onWorkAction(wType)}
+                            className="mobile-move-btn is-work"
+                          >
+                            <div className="mobile-move-btn-header">
+                              <span className="text-base">{opt.icon}</span>
+                              <span className="mobile-move-btn-cost text-orange-400">Práce</span>
+                            </div>
+                            <span className="mobile-move-btn-title">{opt.label}</span>
+                            <span className="mobile-move-btn-detail">{opt.detail}</span>
+                            {!opt.isAvailable && (
+                              <span className="text-[9px] text-red-400 font-semibold">{opt.unavailableReason}</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Vstup do Astrální sféry místo pohybu */}
+                {sphereOptions.length > 0 && (
+                  <div className="mobile-move-group">
+                    <div className="mobile-move-group-title">
+                      <span>🌌 Vstup do Astrální sféry</span>
+                    </div>
+                    <div className="mobile-move-grid">
+                      {sphereOptions.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          disabled={!opt.isAvailable}
+                          title={opt.unavailableReason}
+                          onClick={() => onEnterSphere(opt.sphereId!)}
+                          className="mobile-move-btn is-gate"
+                        >
+                          <div className="mobile-move-btn-header">
+                            <span className="text-base">{opt.icon}</span>
+                            <span className="mobile-move-btn-cost text-purple-400">Výzva</span>
+                          </div>
+                          <span className="mobile-move-btn-title">{opt.label}</span>
+                          <span className="mobile-move-btn-detail">{opt.detail}</span>
+                          {!opt.isAvailable && (
+                            <span className="text-[9px] text-red-400 font-semibold">{opt.unavailableReason}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : hasCompletedTileAction ? (
               <div className="mobile-completed-box animate-in fade-in duration-200">
@@ -220,18 +362,10 @@ export function MobileGameView({
               </div>
             ) : (
               <div className="mobile-prompt">
-                <strong>Co podnikneš v {currentTile.name}?</strong>
+                <strong>Jsi na poli #{currentTile.id}: {currentTile.name}</strong>
                 <p>
-                  Hod {lastDiceRoll?.[0]} + {lastDiceRoll?.[1]} = {(lastDiceRoll?.[0] || 0) + (lastDiceRoll?.[1] || 0)}.
-                  V tomto tahu smíš provést <strong>právě 1 akci</strong> (karta, nákup nebo odpočinek).
+                  Pohyb dokončen. V tomto tahu smíš provést <strong>právě 1 akci</strong> (karta v divočině, návštěva cechu/tržiště nebo odpočinek).
                 </p>
-                <button
-                  type="button"
-                  className="mobile-switch cursor-pointer"
-                  onClick={onSwitchDirection}
-                >
-                  ↩ Raději jít na pole {alternateTile.id}: {alternateTile.name}
-                </button>
               </div>
             )}
           </section>
@@ -332,12 +466,47 @@ export function MobileGameView({
             <div className="mobile-track" ref={trackRef}>
               {BOARD_TILES.map((tile) => {
                 const isHere = game.players.some((player) => player.currentTileId === tile.id)
-                return <button type="button" data-tile-id={tile.id} key={tile.id} onClick={() => onSelectTile(tile)} className={`mobile-tile cursor-pointer ${tile.id === activePlayer.currentTileId ? 'is-current' : ''} ${tile.id === selectedTile.id ? 'is-selected' : ''}`} aria-label={`Pole ${tile.id}: ${tile.name}`}>
-                  <span className="mobile-tile-number">{String(tile.id).padStart(2, '0')}</span>
-                  <span className="mobile-tile-icon" aria-hidden="true">{terrainIcon[tile.terrain]}</span>
-                  <strong>{tile.name}</strong>
-                  {isHere && <span className="mobile-tile-pawns">{game.players.filter((player) => player.currentTileId === tile.id).map((player) => player.heroClass.avatar).join(' ')}</span>}
-                </button>
+                const isReachable = !hasMoved && isMyTurn && validMoves.includes(tile.id)
+                return (
+                  <button
+                    type="button"
+                    data-tile-id={tile.id}
+                    key={tile.id}
+                    onClick={() => {
+                      onSelectTile(tile)
+                      if (isReachable) {
+                        const matching = moveOptions.filter((o) => o.targetTileId === tile.id && o.isAvailable)
+                        if (matching.length > 0) {
+                          const chosen = matching.find((m) => m.type === 'walk' || m.type === 'stay') || matching[0]
+                          if (chosen.type !== 'work' && chosen.type !== 'enter_sphere') {
+                            onExecuteMove(chosen.targetTileId, chosen.costGold, chosen.type)
+                          }
+                        }
+                      }
+                    }}
+                    className={`mobile-tile cursor-pointer ${
+                      tile.id === activePlayer.currentTileId ? 'is-current' : ''
+                    } ${tile.id === selectedTile.id ? 'is-selected' : ''} ${
+                      isReachable ? 'is-move' : ''
+                    }`}
+                    aria-label={`Pole ${tile.id}: ${tile.name}`}
+                  >
+                    <span className="mobile-tile-number">{String(tile.id).padStart(2, '0')}</span>
+                    <span className="mobile-tile-icon" aria-hidden="true">{terrainIcon[tile.terrain]}</span>
+                    <strong>{tile.name}</strong>
+                    {tile.hasPort && <span className="text-[10px]" title="Přístav">⛵</span>}
+                    {tile.hasMagicGate && <span className="text-[10px]" title="Magická brána">🌀</span>}
+                    {isReachable && <span className="mobile-tile-go">ZVOLIT ›</span>}
+                    {isHere && (
+                      <span className="mobile-tile-pawns">
+                        {game.players
+                          .filter((player) => player.currentTileId === tile.id)
+                          .map((player) => player.heroClass.avatar)
+                          .join(' ')}
+                      </span>
+                    )}
+                  </button>
+                )
               })}
             </div>
             {selectedTile.id !== currentTile.id && <div className="mobile-tile-detail"><strong>{selectedTile.name}</strong><p>{selectedTile.description}</p></div>}

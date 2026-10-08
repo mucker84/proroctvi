@@ -78,8 +78,185 @@ export function rollDice(): [number, number] {
   return [d1, d2]
 }
 
+export interface TacticalMovementOption {
+  id: string
+  type: 'walk' | 'horse' | 'ship' | 'gate' | 'stay' | 'work' | 'enter_sphere'
+  targetTileId: number
+  label: string
+  detail: string
+  icon: string
+  costGold: number
+  costHp?: number
+  costWill?: number
+  rewardGold?: number
+  rewardExp?: number
+  sphereId?: SphereElement
+  isAvailable: boolean
+  unavailableReason?: string
+}
+
+export function getTacticalMoveOptions(
+  player: Player,
+  claimedSpheres: Record<SphereElement, string | null>
+): TacticalMovementOption[] {
+  const currentTile = BOARD_TILES[player.currentTileId] || BOARD_TILES[0]
+  const total = BOARD_TILES.length
+  const options: TacticalMovementOption[] = []
+
+  // 1. Walk: Left (-1), Stay (0), Right (+1)
+  const leftTileId = (player.currentTileId - 1 + total) % total
+  const rightTileId = (player.currentTileId + 1) % total
+  const leftTile = BOARD_TILES[leftTileId]
+  const rightTile = BOARD_TILES[rightTileId]
+
+  options.push({
+    id: `walk-left-${leftTileId}`,
+    type: 'walk',
+    targetTileId: leftTileId,
+    label: `Pěšky vlevo (#${leftTileId} ${leftTile.name})`,
+    detail: 'Zdarma · 1 pole proti směru',
+    icon: '🚶',
+    costGold: 0,
+    isAvailable: true,
+  })
+
+  options.push({
+    id: `stay-${player.currentTileId}`,
+    type: 'stay',
+    targetTileId: player.currentTileId,
+    label: `Zůstat na místě (#${player.currentTileId} ${currentTile.name})`,
+    detail: 'Zdarma · Žádný přesun',
+    icon: '🛑',
+    costGold: 0,
+    isAvailable: true,
+  })
+
+  options.push({
+    id: `walk-right-${rightTileId}`,
+    type: 'walk',
+    targetTileId: rightTileId,
+    label: `Pěšky vpravo (#${rightTileId} ${rightTile.name})`,
+    detail: 'Zdarma · 1 pole po směru',
+    icon: '🚶',
+    costGold: 0,
+    isAvailable: true,
+  })
+
+  // 2. Horse: Left (-2), Right (+2)
+  const horseLeftId = (player.currentTileId - 2 + total) % total
+  const horseRightId = (player.currentTileId + 2) % total
+  const hLeftTile = BOARD_TILES[horseLeftId]
+  const hRightTile = BOARD_TILES[horseRightId]
+
+  options.push({
+    id: `horse-left-${horseLeftId}`,
+    type: 'horse',
+    targetTileId: horseLeftId,
+    label: `Na koni vlevo (#${horseLeftId} ${hLeftTile.name})`,
+    detail: '1 🪙 zl. · 2 pole proti směru',
+    icon: '🐎',
+    costGold: 1,
+    isAvailable: player.gold >= 1,
+    unavailableReason: player.gold < 1 ? 'Nemáš 1 zlaťák na koně' : undefined,
+  })
+
+  options.push({
+    id: `horse-right-${horseRightId}`,
+    type: 'horse',
+    targetTileId: horseRightId,
+    label: `Na koni vpravo (#${horseRightId} ${hRightTile.name})`,
+    detail: '1 🪙 zl. · 2 pole po směru',
+    icon: '🐎',
+    costGold: 1,
+    isAvailable: player.gold >= 1,
+    unavailableReason: player.gold < 1 ? 'Nemáš 1 zlaťák na koně' : undefined,
+  })
+
+  // 3. Ship: Ports (if on port)
+  if (currentTile.hasPort) {
+    const ports = BOARD_TILES.filter((t) => t.hasPort && t.id !== currentTile.id)
+    for (const port of ports) {
+      options.push({
+        id: `ship-${port.id}`,
+        type: 'ship',
+        targetTileId: port.id,
+        label: `Cesta lodí do #${port.id} (${port.name})`,
+        detail: '1 🪙 zl. · Plavba přes moře',
+        icon: '⛵',
+        costGold: 1,
+        isAvailable: player.gold >= 1,
+        unavailableReason: player.gold < 1 ? 'Nemáš 1 zlaťák na lodní lístek' : undefined,
+      })
+    }
+  }
+
+  // 4. Magic Gate: (if on magic gate)
+  if (currentTile.hasMagicGate) {
+    const gates = BOARD_TILES.filter((t) => t.hasMagicGate && t.id !== currentTile.id)
+    for (const gate of gates) {
+      options.push({
+        id: `gate-${gate.id}`,
+        type: 'gate',
+        targetTileId: gate.id,
+        label: `Magická brána do #${gate.id} (${gate.name})`,
+        detail: '2 🪙 zl. · Okamžitý přenos',
+        icon: '🌀',
+        costGold: 2,
+        isAvailable: player.gold >= 2,
+        unavailableReason: player.gold < 2 ? 'Nemáš 2 zlaťáky na teleport' : undefined,
+      })
+    }
+  }
+
+  // 5. Work instead of movement (if tile offers work)
+  if (currentTile.workAction) {
+    const wa = currentTile.workAction
+    const canAfford =
+      (wa.costHp ? player.currentStrength > wa.costHp : true) &&
+      (wa.costWill ? player.currentWill >= wa.costWill : true)
+
+    options.push({
+      id: `work-${wa.type}`,
+      type: 'work',
+      targetTileId: currentTile.id,
+      label: wa.title,
+      detail: wa.description,
+      icon: '🛠️',
+      costGold: 0,
+      costHp: wa.costHp,
+      costWill: wa.costWill,
+      rewardGold: wa.rewardGold,
+      rewardExp: wa.rewardExp,
+      isAvailable: canAfford,
+      unavailableReason: !canAfford ? 'Nemáš dostatek Síly nebo Vůle' : undefined,
+    })
+  }
+
+  // 6. Enter Astral Sphere instead of movement (if nearSphere)
+  if (currentTile.nearSphere) {
+    const sphere = ASTRAL_SPHERES.find((s) => s.id === currentTile.nearSphere)
+    const isTaken = claimedSpheres[currentTile.nearSphere] !== null
+    if (sphere) {
+      options.push({
+        id: `sphere-${sphere.id}`,
+        type: 'enter_sphere',
+        targetTileId: currentTile.id,
+        label: `Vstup do sféry: ${sphere.name}`,
+        detail: `Místo pohybu · Výzva pro ${sphere.guardian.name}`,
+        icon: '🌌',
+        costGold: 0,
+        sphereId: sphere.id,
+        isAvailable: !isTaken,
+        unavailableReason: isTaken ? `Artefakt již získal ${claimedSpheres[currentTile.nearSphere]}` : undefined,
+      })
+    }
+  }
+
+  return options
+}
+
 export function getPossibleMoves(currentTileId: number, steps: number): number[] {
-  // Movement around circular board of 32 tiles (clockwise and counter-clockwise)
+  // Legacy fallback for tests
   const totalTiles = BOARD_TILES.length
   const clockwise = (currentTileId + steps) % totalTiles
   const counterClockwise = (currentTileId - steps + totalTiles) % totalTiles
@@ -87,15 +264,6 @@ export function getPossibleMoves(currentTileId: number, steps: number): number[]
   const results = new Set<number>()
   results.add(clockwise)
   results.add(counterClockwise)
-
-  // Check water connections if on water tile
-  const tile = BOARD_TILES.find((t) => t.id === currentTileId)
-  if (tile && tile.waterConnections) {
-    for (const wc of tile.waterConnections) {
-      results.add(wc)
-    }
-  }
-
   return Array.from(results)
 }
 

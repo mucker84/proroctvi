@@ -3,61 +3,141 @@ import { SHOP_ITEMS } from '../data/cards'
 import { calculatePlayerAttack, calculatePlayerDefense } from './gameEngine'
 import { BoardTile, Item, Monster, Player, SphereElement } from './types'
 
-/**
- * Evaluates whether moving clockwise or counter-clockwise is better for the AI.
- */
-export function decideAIDirection(
+export type AIMoveChoice =
+  | { type: 'walk'; targetTileId: number; label: string }
+  | { type: 'horse'; targetTileId: number; costGold: 1; label: string }
+  | { type: 'ship'; targetTileId: number; costGold: 1; label: string }
+  | { type: 'gate'; targetTileId: number; costGold: 2; label: string }
+  | { type: 'stay'; targetTileId: number; label: string }
+  | { type: 'work'; workType: 'city_work' | 'guild_work' | 'fortress_training'; label: string }
+  | { type: 'enter_sphere'; sphereId: SphereElement; label: string }
+
+export function scoreTileForAI(
   player: Player,
-  totalSteps: number,
+  tile: BoardTile,
   claimedSpheres: Record<SphereElement, string | null>
-): 'cw' | 'ccw' {
-  const currentId = player.currentTileId
-  const total = BOARD_TILES.length
-
-  const cwId = (currentId + totalSteps) % total
-  const ccwId = (currentId - totalSteps + total) % total
-
-  const cwTile = BOARD_TILES.find((t) => t.id === cwId) || BOARD_TILES[0]
-  const ccwTile = BOARD_TILES.find((t) => t.id === ccwId) || BOARD_TILES[0]
-
-  const scoreTile = (tile: BoardTile): number => {
-    let score = 10
-
-    // Priority 1: If injured, strongly prefer cities, temples, camps
-    const isInjured = player.currentStrength < player.maxStrength - 2
-    if (isInjured) {
-      if (tile.terrain === 'temple' && player.gold >= 2) score += 50
-      if (tile.terrain === 'city') score += 30
-      if (tile.terrain === 'camp') score += 20
+): number {
+  let score = 10
+  const isInjured = player.currentStrength < player.maxStrength - 1
+  if (isInjured) {
+    if (tile.id === 16) score += 45 // Klášter léčení zdarma
+    if (tile.id === 8 && player.gold >= 1) score += 35 // Lesní tábor léčení
+    if (tile.terrain === 'city') score += 20
+  }
+  if (tile.id === 13 && player.currentWill < player.maxWill) {
+    score += 30 // Magická pustina (+3 Vůle zdarma)
+  }
+  if (player.experience >= 4 && tile.isGuild) {
+    score += 35 // Cechovní výcvik
+  }
+  if (tile.hasAstralGate && !claimedSpheres[tile.hasAstralGate]) {
+    if (player.currentStrength >= 6) {
+      score += 70 // Připraven na astrální sféru!
+    } else {
+      score -= 10
     }
+  }
+  if (tile.terrain === 'city' && player.gold >= 4 && player.inventory.length < 2) {
+    score += 25
+  }
+  if (tile.terrain === 'forest' || tile.terrain === 'mountain' || tile.terrain === 'plains') {
+    if (!isInjured) score += 20 // Divočina pro karty
+  }
+  return score
+}
 
-    // Priority 2: If healthy and high exp, prefer training grounds or temple
-    if (player.experience >= 4) {
-      if (tile.terrain === 'training') score += 35
-      if (tile.terrain === 'temple') score += 25
+/**
+ * Decides tactical movement for AI according to official Prophecy rules (No dice!).
+ */
+export function decideAIMovement(
+  player: Player,
+  claimedSpheres: Record<SphereElement, string | null>
+): AIMoveChoice {
+  const currentTile = BOARD_TILES[player.currentTileId] || BOARD_TILES[0]
+
+  // 1. Enter Astral Sphere if ready
+  if (currentTile.nearSphere && !claimedSpheres[currentTile.nearSphere] && player.currentStrength >= 6) {
+    return {
+      type: 'enter_sphere',
+      sphereId: currentTile.nearSphere,
+      label: `Vstoupit do sféry (${currentTile.nearSphere})`,
     }
-
-    // Priority 3: Astral gate with unclaimed artifact when healthy
-    if (tile.hasAstralGate && !claimedSpheres[tile.hasAstralGate]) {
-      if (player.currentStrength >= 6) {
-        score += 60 // Ready to challenge sphere!
-      } else {
-        score -= 10 // Not strong enough yet
-      }
-    }
-
-    // Priority 4: City for shopping if wealthy
-    if (tile.terrain === 'city' && player.gold >= 4 && player.inventory.length < 2) {
-      score += 25
-    }
-
-    return score
   }
 
-  const cwScore = scoreTile(cwTile)
-  const ccwScore = scoreTile(ccwTile)
+  // 2. Action instead of movement (Work / Training)
+  if (currentTile.workAction) {
+    if (currentTile.workAction.type === 'city_work' && player.gold <= 2 && player.currentWill >= 2) {
+      return { type: 'work', workType: 'city_work', label: 'Odborná práce ve městě (+2 zl)' }
+    }
+    if (currentTile.workAction.type === 'fortress_training' && player.currentStrength >= 5 && player.experience < 4) {
+      return { type: 'work', workType: 'fortress_training', label: 'Cvičiště v pevnosti (+2 exp)' }
+    }
+  }
 
-  return cwScore >= ccwScore ? 'cw' : 'ccw'
+  // 3. Evaluate Movement options
+  const total = BOARD_TILES.length
+  const leftId = (player.currentTileId - 1 + total) % total
+  const rightId = (player.currentTileId + 1) % total
+  const leftTile = BOARD_TILES[leftId]
+  const rightTile = BOARD_TILES[rightId]
+
+  const options: { choice: AIMoveChoice; score: number }[] = [
+    {
+      choice: { type: 'walk', targetTileId: rightId, label: `Pěšky vpravo (${rightTile.name})` },
+      score: scoreTileForAI(player, rightTile, claimedSpheres),
+    },
+    {
+      choice: { type: 'walk', targetTileId: leftId, label: `Pěšky vlevo (${leftTile.name})` },
+      score: scoreTileForAI(player, leftTile, claimedSpheres),
+    },
+    {
+      choice: { type: 'stay', targetTileId: player.currentTileId, label: `Zůstat na místě (${currentTile.name})` },
+      score: scoreTileForAI(player, currentTile, claimedSpheres) - 5,
+    },
+  ]
+
+  // Horse movement (2 spaces) if wealthy
+  if (player.gold >= 2) {
+    const horseLeftId = (player.currentTileId - 2 + total) % total
+    const horseRightId = (player.currentTileId + 2) % total
+    const hLeftTile = BOARD_TILES[horseLeftId]
+    const hRightTile = BOARD_TILES[horseRightId]
+
+    options.push({
+      choice: { type: 'horse', targetTileId: horseRightId, costGold: 1, label: `Kůň vpravo (${hRightTile.name})` },
+      score: scoreTileForAI(player, hRightTile, claimedSpheres) + 2,
+    })
+    options.push({
+      choice: { type: 'horse', targetTileId: horseLeftId, costGold: 1, label: `Kůň vlevo (${hLeftTile.name})` },
+      score: scoreTileForAI(player, hLeftTile, claimedSpheres) + 2,
+    })
+  }
+
+  // Ship movement if in port
+  if (currentTile.hasPort && player.gold >= 1) {
+    const ports = BOARD_TILES.filter((t) => t.hasPort && t.id !== currentTile.id)
+    for (const port of ports) {
+      options.push({
+        choice: { type: 'ship', targetTileId: port.id, costGold: 1, label: `Cesta lodí do ${port.name}` },
+        score: scoreTileForAI(player, port, claimedSpheres) + 3,
+      })
+    }
+  }
+
+  // Magic gate if in gate
+  if (currentTile.hasMagicGate && player.gold >= 2) {
+    const gates = BOARD_TILES.filter((t) => t.hasMagicGate && t.id !== currentTile.id)
+    for (const gate of gates) {
+      options.push({
+        choice: { type: 'gate', targetTileId: gate.id, costGold: 2, label: `Magická brána do ${gate.name}` },
+        score: scoreTileForAI(player, gate, claimedSpheres) + 4,
+      })
+    }
+  }
+
+  // Pick the highest scoring choice
+  options.sort((a, b) => b.score - a.score)
+  return options[0].choice
 }
 
 /**

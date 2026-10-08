@@ -8,7 +8,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     color: '#ef4444',
     description: 'Pekelná sféra žhavé lávy, síry a spalujícího žáru. Každý krok zde pálí.',
     hazardRules: 'Na začátku každého kola v této sféře ztrácí hrdina 1 Sílu žárem, pokud nemá ochranu.',
-    gateTileId: 5,
+    gateTileId: 0,
     guardian: {
       id: 'guardian_fire',
       name: 'Ohnivý Démon (Ifrít)',
@@ -38,7 +38,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     color: '#06b6d4',
     description: 'Nehostinná pláň věčného ledu, ledovcových trhlin a zmrazujících vichrů.',
     hazardRules: 'Hrdinův pohyb je snížen a zranění v boji se hojí pomaleji.',
-    gateTileId: 11,
+    gateTileId: 8,
     guardian: {
       id: 'guardian_ice',
       name: 'Ledový Drak',
@@ -68,7 +68,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     color: '#a855f7',
     description: 'Temná bezedná propast, kde i světlo pochodní pohltí prázdnota a beznaděj.',
     hazardRules: 'Zde selhávají běžná zraková kouzla a mentální útoky monster pronikají hlouběji.',
-    gateTileId: 19,
+    gateTileId: 4,
     guardian: {
       id: 'guardian_shadow',
       name: 'Pán Stínů',
@@ -97,7 +97,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     color: '#eab308',
     description: 'Vznášející se ostrovy v nekonečném mraku protkaném blesky a vichřicemi.',
     hazardRules: 'Hrozí zasažení bleskem při každém pohybu bez ukotvení.',
-    gateTileId: 25,
+    gateTileId: 16,
     guardian: {
       id: 'guardian_storm',
       name: 'Hromový Titán',
@@ -126,7 +126,7 @@ export const ASTRAL_SPHERES: AstralSphere[] = [
     color: '#3b82f6',
     description: 'Čistý éter a zdroj veškeré magické síly, kde zákony fyziky neplatí.',
     hazardRules: 'Kouzla stojí dvojnásobek vůle nebo mají nepředvídatelný efekt.',
-    gateTileId: 31,
+    gateTileId: 12,
     guardian: {
       id: 'guardian_magic',
       name: 'Astrální Chiméra',

@@ -125,11 +125,11 @@ export const IntroGuideModal: React.FC<IntroGuideModalProps> = ({ isOpen, onClos
             <ul className="text-[11px] text-stone-300 space-y-1.5 pl-1">
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold">1.</span>
-                <span><strong>Pohyb:</strong> Zvolíš směr (po směru / proti směru) a posuneš se po cestě království.</span>
+                <span><strong>Taktický pohyb (žádné kostky!):</strong> Zvolíš si způsob přesunu – <strong>Pěšky</strong> (o 1 pole nebo zůstat, zdarma), <strong>Na koni</strong> (o 2 pole za 1 zl.), <strong>Lodí</strong> (mezi přístavy za 1 zl.), <strong>Magickou bránou</strong> (teleport za 2 zl.), nebo provedeš <strong>Akci místo pohybu</strong> (práce ve městě / cechu). Kostky se hází výhradně v soubojích!</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-amber-400 font-bold">2.</span>
-                <span><strong>Právě 1 akce:</strong> V divočině vytáhneš 1 kartu dobrodružství, v táboře odpočineš, nebo ve městě navštívíš tržiště.</span>
+                <span><strong>Právě 1 akce:</strong> V divočině vytáhneš 1 kartu dobrodružství, v civilizaci či cechu navštívíš výcvik a tržiště, v pustině medituješ, nebo si odpočineš.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">3.</span>
