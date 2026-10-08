@@ -50,6 +50,20 @@ Určeno pro nasazení na Vercel (7ax.fun).
 
 ---
 
+## Sdílené poznatky napříč hrami
+
+Pro návrhy mobilního GUI, multiplayeru a testování čti [společný herní index CML](C:/xampp/htdocs/cml/handoff/games/README.md). Po relevantní práci předej obecně použitelné závěry se zdrojem, verzí, důkazem a omezením. Původní kód a výsledky zůstávají v projektu; převzatý zápis jiného agenta není nový test této hry. Související projekt Kartičky má aktuální zdroje v `C:/xampp/htdocs/games/karty/`, i když je chat vedený pod `games/karticky`.
+
+## Další cíl: dva telefony, jeden herní stůl
+
+Podrobný audit a kritéria jsou v [docs/SHARED-TABLE.md](docs/SHARED-TABLE.md). Z dosavadních zaškrtnutých funkcí nevyplývá dokončený online herní průchod; lokální sonda protokolu z 2026-10-08 odhalila pět neprošlých kontrol.
+
+1. [ ] M1: správný roster hráčů, serverové ověření příkazů a revizí, společné karty/souboje/odměny, obnova partie a test dvou klientů.
+2. [ ] M2: prostorová deska, stabilní HUD a akce v dosahu palce, samostatný landscape; oba hráči vidí stejnou událost a mohou se nezávisle rozhlížet.
+3. [ ] M3: krátké zvuky/animace, ukázání na pole, reakce a další ilustrace podle přínosu.
+
+Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-BRIEF.md), výstupy vyhrazené do `docs/gemini/`. Prompt je připravený k předání; přímé spuštění Gemini z tohoto chatu není dostupné.
+
 ## Denik
 2026-10-07 · Antigravity · Inicializace projektu, Vite + TS + Tailwind, zprovoznění struktury a plánu hry · rozpracovano
 2026-10-07 · Antigravity · Implementace hracího plánu (32 polí), 5 astrálních sfér, animovaných kostek, 3D karet, soubojového systému a nákupů · hotovo
@@ -65,3 +79,6 @@ Určeno pro nasazení na Vercel (7ax.fun).
 2026-10-07 · Antigravity · Sjednocení PC a mobilní verze do moderního plynulého zážitku (desktop widescreen layout, plynulá cesta, dock a akční centrum) · hotovo
 2026-10-07 · Antigravity · Autentická pravidla deskovky pro souboje (1 zásah zabíjí netvora, úprk během boje, bleskový souboj, mentální vs fyzické zranění, obrození a odměny) · hotovo
 
+2026-10-08 · Codex · Založeny společné poznatky o mobilním GUI, multiplayeru a testování v CML/handoff/games; přidané tematické čtení do sdíleného AGENTS.md a návaznost na Kartičky · hotovo
+2026-10-08 · Codex · Audit společného deskového zážitku (lokální protokol 0/5 kontrol), předání GUI poznatků Kartiček, plán M1–M3 a připravené zadání Gemini; opravy multiplayeru a nový stůl čekají na implementaci · rozpracovano
+2026-10-08 · Antigravity · Implementace Hero HUD a okamžitého inventáře na hlavní herní ploše, zobrazení zlaťáků/exp/výbavy ve scoreboardu, klikací deník hrdinů a oprava lektvarů · hotovo

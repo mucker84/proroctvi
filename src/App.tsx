@@ -492,20 +492,38 @@ export const App: React.FC = () => {
   const handleUseItem = (item: Item) => {
     const updatedPlayers = [...game.players]
     const currentPlayer = { ...updatedPlayers[game.activePlayerIndex] }
+    let effectDesc = ''
+
     if (item.effect === 'heal_3_str') {
       currentPlayer.currentStrength = Math.min(
         currentPlayer.maxStrength,
         currentPlayer.currentStrength + 3
       )
+      effectDesc = '+3 Síla (životy)'
     } else if (item.effect === 'heal_3_will') {
       currentPlayer.currentWill = Math.min(
         currentPlayer.maxWill,
         currentPlayer.currentWill + 3
       )
+      effectDesc = '+3 Vůle (mana)'
+    } else if (item.effect === 'heal_full') {
+      currentPlayer.currentStrength = currentPlayer.maxStrength
+      currentPlayer.currentWill = currentPlayer.maxWill
+      effectDesc = 'plná obnova Síly i Vůle'
     }
+
     currentPlayer.inventory = currentPlayer.inventory.filter((i) => i.id !== item.id)
     updatedPlayers[game.activePlayerIndex] = currentPlayer
-    pushStateUpdate({ ...game, players: updatedPlayers })
+
+    const nextState: GameState = {
+      ...game,
+      players: updatedPlayers,
+      gameLog: [
+        `${currentPlayer.name} použil ${item.name} (${effectDesc}).`,
+        ...game.gameLog.slice(0, 15),
+      ],
+    }
+    pushStateUpdate(nextState)
   }
 
   // End turn

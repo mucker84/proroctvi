@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-08",
+  "scope": "Local room handler, two seats in process memory, network disabled.",
+  "fixture": "Minimal room-state fixture; this is not a complete gameplay or browser test.",
+  "checks": [
+    {
+      "id": "guest-hero-selection",
+      "expected": "Guest hero choice is reflected in the game state.",
+      "passed": false,
+      "observed": "mage"
+    },
+    {
+      "id": "host-start-preserves-guest",
+      "expected": "Starting with a pre-join host snapshot preserves the joined guest.",
+      "passed": false,
+      "observed": "Waiting"
+    },
+    {
+      "id": "only-host-starts",
+      "expected": "Guest cannot start the room.",
+      "passed": false,
+      "observed": "Guest start accepted."
+    },
+    {
+      "id": "inactive-seat-update",
+      "expected": "Inactive player cannot replace the active game state.",
+      "passed": false,
+      "observed": "Inactive guest update accepted; gold=999."
+    },
+    {
+      "id": "stale-state-update",
+      "expected": "An update based on an older revision is rejected.",
+      "passed": false,
+      "observed": "Stale update accepted; newer gold=6 overwritten with 4."
+    }
+  ]
+}

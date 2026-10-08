@@ -1,5 +1,7 @@
 # Technická architektura: Proroctví (Prophecy Board Game Digital)
 
+> Audit 2026-10-08: aktuální implementace ještě nezajišťuje úplný společný průběh karet a soubojů ani serverovou autoritu tahu. Ověřené mezery a další postup jsou v [docs/SHARED-TABLE.md](docs/SHARED-TABLE.md); protokol místnosti zatím neprošel pěti kontrolami v `scripts/audit-room.mjs`.
+
 Webová adaptace legendární české deskové hry **Proroctví** (Vladimír Chvátil, Nakladatelství ALTAR / Albi, 2002).
 
 - **Živá produkce:** [https://7ax.fun/proroctvi/](https://7ax.fun/proroctvi/)
@@ -89,10 +91,10 @@ Tah probíhá ve třech jasných krocích:
      - `action=create`: Založí 6místný kód místnosti, vytvoří token Hostitele (Hráč 1) a uloží výchozí stav.
      - `action=join`: Připojí Hráče 2 s unikátním tokenem a aktualizuje stav v Redisu.
      - `action=sync`: Pravidelný polling (interval 1,5 s) vracející aktuální verzi stavu `v` a data.
-     - `action=update`: Atomický zápis nového stavu hry od aktivního hráče s inkrementací verze.
+     - `action=update`: Atomický zápis celého klientského stavu s inkrementací verze; aktuálně neověřuje aktivního hráče ani výchozí klientskou revizi.
 2. **Synchronizace stavu:**
    - Klient sleduje `stateVersionRef`. Pokud dorazí novější stav, plynule aktualizuje UI.
-   - Ochrana proti neautorizovaným tahům (hrát může pouze ten, kdo je na tahu).
+   - Klient omezuje ovládání podle aktivního hráče. Server zatím ověřuje token místnosti, ale nevynucuje pořadí tahu; oprava je součástí milníku M1 v `docs/SHARED-TABLE.md`.
 
 ---
 
