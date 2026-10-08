@@ -45,10 +45,14 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                   ? 'Posvátný Chrám'
                   : 'Tábor Kočovníků'}
               </h2>
-              <p className="text-xs text-stone-400">
-                Máš k dispozici: <span className="text-amber-400 font-bold">{player.gold} 🪙 Zlaťáků</span> a{' '}
-                <span className="text-emerald-400 font-bold">{player.experience} ⭐ Zkušeností</span>
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-xs font-black text-amber-300 shadow-sm">
+                  🪙 {player.gold} Zlaťáků
+                </span>
+                <span className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-xs font-black text-emerald-300 shadow-sm">
+                  ⭐ {player.experience} Zkušeností
+                </span>
+              </div>
             </div>
           </div>
 

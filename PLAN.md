@@ -82,3 +82,4 @@ Zadání vizuálního návrhu pro Gemini/Antigravity: [GEMINI-BRIEF.md](GEMINI-B
 2026-10-08 · Codex · Založeny společné poznatky o mobilním GUI, multiplayeru a testování v CML/handoff/games; přidané tematické čtení do sdíleného AGENTS.md a návaznost na Kartičky · hotovo
 2026-10-08 · Codex · Audit společného deskového zážitku (lokální protokol 0/5 kontrol), předání GUI poznatků Kartiček, plán M1–M3 a připravené zadání Gemini; opravy multiplayeru a nový stůl čekají na implementaci · rozpracovano
 2026-10-08 · Antigravity · Implementace Hero HUD a okamžitého inventáře na hlavní herní ploše, zobrazení zlaťáků/exp/výbavy ve scoreboardu, klikací deník hrdinů a oprava lektvarů · hotovo
+2026-10-08 · Antigravity · Vizuální Resource Bar (výrazné zlaťáky, expy, HP, mana), Lišta Proroctví (sledování 4 artefaktů ze sfér), barevné pilulky ve scoreboardu a zobrazení jmění u akcí · hotovo

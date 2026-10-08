@@ -28,11 +28,140 @@
 .mobile-player.is-active { border-color: #cda153; background: linear-gradient(130deg, #3b3026, #211d20); box-shadow: 0 0 0 1px #a77c3a55 inset; }
 .mobile-player-portrait { flex: 0 0 39px; width: 39px; height: 39px; display: grid; place-items: center; overflow: hidden; border-radius: 9px; background: #42372c; font-size: 22px; }
 .mobile-player-portrait img { width: 100%; height: 100%; object-fit: cover; }
-.mobile-player-info { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.mobile-player-info { display: flex; flex-direction: column; min-width: 0; gap: 2px; flex: 1; }
 .mobile-player-label { color: #d7ad6a; font-size: 9px; font-weight: 900; letter-spacing: .08em; white-space: nowrap; }
 .mobile-player-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-.mobile-player-stats { color: #c9c0b6; font-size: 10px; white-space: nowrap; }
-.mobile-player-substats { color: #d6b87d; font-size: 9.5px; white-space: nowrap; margin-top: 1px; font-weight: 600; }
+
+.mobile-player-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+.mobile-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.pill-hp { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.pill-will { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
+.pill-gold { background: rgba(234, 179, 8, 0.25); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.6); font-weight: 900; }
+.pill-exp { background: rgba(16, 185, 129, 0.22); color: #86efac; border: 1px solid rgba(16, 185, 129, 0.5); font-weight: 900; }
+.pill-art { background: rgba(168, 85, 247, 0.22); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); }
+
+/* Prominent Active Hero Resource Bar */
+.mobile-resource-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin: 12px 0;
+}
+.mobile-res-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: #241e23;
+  border: 1px solid #483d35;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: transform 0.15s ease;
+}
+.mobile-res-chip.res-gold {
+  border-color: #ca8a04;
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.2), #231c19);
+}
+.mobile-res-chip.res-exp {
+  border-color: #059669;
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.2), #18221c);
+}
+.mobile-res-chip.res-str {
+  border-color: #dc2626;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), #26191b);
+}
+.mobile-res-chip.res-will {
+  border-color: #2563eb;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), #191b26);
+}
+.res-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.res-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.res-val {
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #fff;
+}
+.res-gold .res-val { color: #fde047; }
+.res-exp .res-val { color: #86efac; }
+.res-str .res-val { color: #fca5a5; }
+.res-will .res-val { color: #93c5fd; }
+.res-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #b5a99f;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Grand Prophecy Quest Banner */
+.mobile-quest-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.4), #1c1822);
+  border: 1px solid #7e22ce;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+.mobile-quest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.mobile-quest-spheres {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.mobile-sphere-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 3px;
+  border-radius: 9px;
+  border: 1px solid #4a3e56;
+  background: #17141f;
+  text-align: center;
+  transition: all 0.2s;
+}
+.mobile-sphere-slot.is-mine {
+  background: rgba(168, 85, 247, 0.35);
+  border-color: #c084fc;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.4);
+}
+.mobile-sphere-slot.is-taken {
+  background: rgba(100, 116, 139, 0.2);
+  border-color: #64748b;
+  opacity: 0.7;
+}
+.mobile-sphere-slot.is-open {
+  border-style: dashed;
+  border-color: #584b6a;
+}
 
 .mobile-main { max-width: 680px; margin: 0 auto; padding: 0 12px 20px; }
 .mobile-scene { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: clamp(188px, 28vh, 260px); padding: 16px; border: 1px solid #67523a; border-radius: 18px; background-size: cover; background-position: center; box-shadow: 0 12px 32px #0005; }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronRight, Compass, ScrollText, Sparkles, Swords, Users } from 'lucide-react'
 import { BOARD_TILES } from '../data/board'
+import { ASTRAL_SPHERES } from '../data/spheres'
 import { calculatePlayerAttack, calculatePlayerDefense } from '../engine/gameEngine'
 import type { BoardTile, GameState, Item, Player, SphereElement } from '../engine/types'
 import { DiceRoller } from './DiceRoller'
@@ -93,12 +94,13 @@ export function MobileGameView({
                 {index === game.activePlayerIndex ? ' · NA TAHU' : ''}
               </span>
               <strong>{player.name}</strong>
-              <span className="mobile-player-stats">
-                ♥ {player.currentStrength}/{player.maxStrength} · ✦ {player.currentWill}/{player.maxWill}
-              </span>
-              <span className="mobile-player-substats">
-                🪙 {player.gold} zl · ⭐ {player.experience} exp · 🎒 {player.inventory.length} · ◈ {player.artifacts.length}/4
-              </span>
+              <div className="mobile-player-pills">
+                <span className="mobile-pill pill-gold" title="Zlaťáky">🪙 {player.gold} zl</span>
+                <span className="mobile-pill pill-exp" title="Zkušenosti">⭐ {player.experience} xp</span>
+                <span className="mobile-pill pill-hp" title="Síla / Životy">❤️ {player.currentStrength}/{player.maxStrength}</span>
+                <span className="mobile-pill pill-will" title="Vůle / Mana">🔮 {player.currentWill}/{player.maxWill}</span>
+                <span className="mobile-pill pill-art" title="Získané artefakty">🏆 {player.artifacts.length}/4</span>
+              </div>
             </div>
           </button>
         ))}
@@ -106,6 +108,73 @@ export function MobileGameView({
 
       {tab === 'map' ? (
         <main className="mobile-main">
+          {/* Grand Prophecy Quest Tracker Banner */}
+          <section className="mobile-quest-banner" aria-label="Cíl hry: 4 z 5 astrálních artefaktů">
+            <div className="mobile-quest-header">
+              <div className="flex items-center gap-1.5 font-bold text-purple-200 text-xs">
+                <span>👑</span>
+                <span>CÍL HRY: ZÍSKEJ 4 Z 5 ARTEFAKTŮ ZE SFÉR</span>
+              </div>
+              <span className="text-[10px] font-black bg-purple-500/30 text-purple-200 border border-purple-400/50 px-2 py-0.5 rounded-full">
+                Tvůj postup: {activePlayer.artifacts.length} / 4
+              </span>
+            </div>
+            <div className="mobile-quest-spheres">
+              {ASTRAL_SPHERES.map((sphere) => {
+                const owner = game.players.find((p) => p.artifacts.some((a) => a.id === sphere.artifact.id))
+                const isClaimedByMe = activePlayer.artifacts.some((a) => a.id === sphere.artifact.id)
+                const sphereEmoji = sphere.id === 'fire' ? '🔥' : sphere.id === 'ice' ? '❄️' : sphere.id === 'shadow' ? '🌑' : sphere.id === 'storm' ? '⚡' : '🔮'
+                return (
+                  <div
+                    key={sphere.id}
+                    className={`mobile-sphere-slot ${isClaimedByMe ? 'is-mine' : owner ? 'is-taken' : 'is-open'}`}
+                    title={`${sphere.name} (Brána #${sphere.gateTileId}): ${sphere.artifact.name} ${owner ? `[Drží: ${owner.name}]` : '[Volné v astrální sféře]'}`}
+                  >
+                    <span className="text-sm">{sphereEmoji}</span>
+                    <span className="text-[9.5px] font-bold text-stone-200">
+                      {isClaimedByMe ? 'Máš!' : owner ? owner.name.slice(0, 6) : sphere.elementName}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          {/* Active Hero Resource Bar */}
+          <section className="mobile-resource-bar" aria-label="Suroviny aktivního hrdiny">
+            <div className="mobile-res-chip res-gold" title="Zlaťáky – k nákupu zbraní, zbrojí a léčení ve městech">
+              <span className="res-icon">🪙</span>
+              <div className="res-meta">
+                <strong className="res-val">{activePlayer.gold}</strong>
+                <span className="res-label">Zlaťáků</span>
+              </div>
+            </div>
+
+            <div className="mobile-res-chip res-exp" title="Zkušenosti – k tréninku Síly, Vůle a bojových dovedností">
+              <span className="res-icon">⭐</span>
+              <div className="res-meta">
+                <strong className="res-val">{activePlayer.experience}</strong>
+                <span className="res-label">Zkušeností</span>
+              </div>
+            </div>
+
+            <div className="mobile-res-chip res-str" title="Síla / HP – fyzické zdraví a útočné číslo">
+              <span className="res-icon">❤️</span>
+              <div className="res-meta">
+                <strong className="res-val">{activePlayer.currentStrength}/{activePlayer.maxStrength}</strong>
+                <span className="res-label">Síla / HP</span>
+              </div>
+            </div>
+
+            <div className="mobile-res-chip res-will" title="Vůle / Mana – duševní zdraví a mentální kouzla">
+              <span className="res-icon">🔮</span>
+              <div className="res-meta">
+                <strong className="res-val">{activePlayer.currentWill}/{activePlayer.maxWill}</strong>
+                <span className="res-label">Vůle / Mana</span>
+              </div>
+            </div>
+          </section>
+
           {/* Tile scene banner */}
           <section className="mobile-scene" style={{ backgroundImage: `linear-gradient(180deg, rgba(13, 12, 20, .12), rgba(13, 12, 20, .94)), url('${currentTile.image || `${import.meta.env.BASE_URL}art/map.jpg`}')` }}>
             <div className="mobile-scene-top"><Compass size={15} /> KRÁLOVSTVÍ · POLE {currentTile.id}</div>
@@ -150,7 +219,7 @@ export function MobileGameView({
           {/* Tile actions */}
           {canActOnTile && <section className="mobile-actions" aria-label="Akce na aktuálním poli">
             <div className="mobile-section-label">AKCE NA POLI</div>
-            {shopAvailable && <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🏪</span><span><strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong><small>Výbava, trénink a léčení</small></span><ChevronRight size={18} /></button>}
+            {shopAvailable && <button type="button" onClick={onOpenShop} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🏪</span><span><strong>{currentTile.specialActionTitle || 'Navštívit místo'}</strong><small>Výbava a trénink (Máš k dispozici: {activePlayer.gold} 🪙 zl, {activePlayer.experience} ⭐ exp)</small></span><ChevronRight size={18} /></button>}
             {currentTile.hasAstralGate && <button type="button" onClick={() => onEnterSphere(currentTile.hasAstralGate!)} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌀</span><span><strong>Vstoupit do astrální sféry</strong><small>Vyzvat strážce a získat artefakt</small></span><ChevronRight size={18} /></button>}
             <button type="button" onClick={onDrawCard} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🎴</span><span><strong>Tahat kartu dobrodružství</strong><small>Událost, poklad nebo souboj</small></span><ChevronRight size={18} /></button>
             <button type="button" onClick={onRest} className="mobile-action cursor-pointer"><span className="mobile-action-icon">🌿</span><span><strong>Odpočinout si</strong><small>Obnovit 1 Sílu nebo 1 Vůli</small></span><ChevronRight size={18} /></button>
