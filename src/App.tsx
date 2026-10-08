@@ -14,6 +14,12 @@ import {
   startCombatWithMonster,
 } from './engine/gameEngine'
 import {
+  decideAIDirection,
+  decideAITileAction,
+  pickAIBestItem,
+  resolveAICombat,
+} from './engine/ai'
+import {
   createOnlineRoom,
   joinOnlineRoom,
   RoomSeat,
@@ -60,12 +66,37 @@ export const App: React.FC = () => {
   const [urlJoinCode, setUrlJoinCode] = useState<string | null>(null)
   const stateVersionRef = useRef(1)
 
-  // Detect ?room=123456 in URL
+  // Detect ?room=123456 in URL, or restore session from localStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlRoom = params.get('room')
     if (urlRoom && urlRoom.length === 6) {
       setUrlJoinCode(urlRoom)
+      return
+    }
+
+    // Try restoring saved online session if exists
+    const saved = localStorage.getItem('proroctvi_online_session')
+    if (saved) {
+      try {
+        const { roomCode: savedCode, token: savedToken, seat: savedSeat } = JSON.parse(saved)
+        if (savedCode && savedToken) {
+          syncOnlineRoom(savedCode, savedToken).then((res) => {
+            if (res.ok) {
+              setRoomCode(savedCode)
+              setMyToken(savedToken)
+              setMySeat(savedSeat || 'p1')
+              if (res.seats) setRoomSeats(res.seats)
+              if (res.state) setGame(res.state)
+              if (res.started) setAppScreen('GAME')
+            } else {
+              localStorage.removeItem('proroctvi_online_session')
+            }
+          })
+        }
+      } catch {
+        localStorage.removeItem('proroctvi_online_session')
+      }
     }
   }, [])
 
@@ -102,7 +133,7 @@ export const App: React.FC = () => {
 
   const isOnline = Boolean(roomCode && mySeat)
   const isMyTurn =
-    !isOnline ||
+    (!isOnline && !activePlayer.isAI) ||
     (mySeat === 'p1' && game.activePlayerIndex === 0) ||
     (mySeat === 'p2' && game.activePlayerIndex === 1)
 
@@ -135,6 +166,24 @@ export const App: React.FC = () => {
     setRoomCode(null)
     setMySeat(null)
     setMyToken(null)
+    localStorage.removeItem('proroctvi_online_session')
+    setAppScreen('GAME')
+  }
+
+  const handleStartAI = (playerHeroId: string, aiHeroId: string, playerName: string) => {
+    const p1Hero = HERO_CLASSES.find((h) => h.id === playerHeroId) || HERO_CLASSES[0]
+    const aiHero = HERO_CLASSES.find((h) => h.id === aiHeroId) || HERO_CLASSES[1]
+
+    const initial = createInitialGame([
+      { name: playerName || `Hráč (${p1Hero.name})`, heroClassId: playerHeroId, isAI: false },
+      { name: `🤖 ${aiHero.name} (AI)`, heroClassId: aiHeroId, isAI: true },
+    ])
+
+    setGame(initial)
+    setRoomCode(null)
+    setMySeat(null)
+    setMyToken(null)
+    localStorage.removeItem('proroctvi_online_session')
     setAppScreen('GAME')
   }
 
@@ -152,6 +201,10 @@ export const App: React.FC = () => {
       setRoomSeats(res.seats || null)
       setGame(initial)
       stateVersionRef.current = res.v || 1
+      localStorage.setItem(
+        'proroctvi_online_session',
+        JSON.stringify({ roomCode: res.code, token: res.token, seat: 'p1' })
+      )
       return res.code
     }
     return null
@@ -168,6 +221,10 @@ export const App: React.FC = () => {
         setGame(res.state)
         stateVersionRef.current = res.v || 1
       }
+      localStorage.setItem(
+        'proroctvi_online_session',
+        JSON.stringify({ roomCode: code, token: res.token, seat: 'p2' })
+      )
       return true
     }
     return false
@@ -186,6 +243,7 @@ export const App: React.FC = () => {
     setMyToken(null)
     setMySeat(null)
     setRoomSeats(null)
+    localStorage.removeItem('proroctvi_online_session')
     setAppScreen('LOBBY')
   }
 
@@ -528,7 +586,7 @@ export const App: React.FC = () => {
 
   // End turn
   const handleEndTurn = () => {
-    if (!isMyTurn) return
+    if (!isMyTurn && !activePlayer.isAI) return
 
     setHasRolledForMove(false)
     setHasCompletedTileAction(false)
@@ -553,11 +611,206 @@ export const App: React.FC = () => {
     pushStateUpdate(nextState)
   }
 
+  // AI Turn Automator State Machine
+  useEffect(() => {
+    if (appScreen !== 'GAME' || !activePlayer.isAI || game.winner) return
+
+    let isMounted = true
+
+    // Step 1: AI rolls dice and moves
+    if (!hasRolledForMove) {
+      const timer = setTimeout(() => {
+        if (!isMounted) return
+        const d1 = Math.floor(Math.random() * 6) + 1
+        const d2 = Math.floor(Math.random() * 6) + 1
+        const dice: [number, number] = [d1, d2]
+        const dir = decideAIDirection(activePlayer, d1 + d2, claimedSpheres)
+
+        const startTileId = activePlayer.currentTileId
+        const totalSteps = d1 + d2
+        const targetTileId =
+          dir === 'cw'
+            ? (startTileId + totalSteps) % BOARD_TILES.length
+            : (startTileId - totalSteps + BOARD_TILES.length) % BOARD_TILES.length
+        const targetTile = BOARD_TILES.find((t) => t.id === targetTileId) || BOARD_TILES[0]
+
+        const updatedPlayers = [...game.players]
+        updatedPlayers[game.activePlayerIndex] = {
+          ...updatedPlayers[game.activePlayerIndex],
+          currentTileId: targetTileId,
+        }
+
+        setTileBeforeRoll(startTileId)
+        setLastDiceRoll(dice)
+        setLastDirection(dir)
+        setHasRolledForMove(true)
+        setHasCompletedTileAction(false)
+        setSelectedTile(targetTile)
+
+        const nextState: GameState = {
+          ...game,
+          players: updatedPlayers,
+          diceValues: dice,
+          phase: 'TILE_ACTION',
+          gameLog: [
+            `🤖 ${activePlayer.name} hodil 🎲 ${d1} + ${d2} (${totalSteps}) a postoupil na pole #${targetTileId} (${targetTile.name}).`,
+            ...game.gameLog.slice(0, 15),
+          ],
+        }
+        pushStateUpdate(nextState)
+      }, 1000)
+
+      return () => {
+        isMounted = false
+        clearTimeout(timer)
+      }
+    }
+
+    // Step 2: AI executes action on current tile
+    if (hasRolledForMove && !hasCompletedTileAction) {
+      const timer = setTimeout(() => {
+        if (!isMounted) return
+        const action = decideAITileAction(activePlayer, currentTile, claimedSpheres)
+        const updatedPlayers = [...game.players]
+        const bot = { ...updatedPlayers[game.activePlayerIndex] }
+        let logMsg = ''
+
+        if (action === 'heal') {
+          bot.gold = Math.max(0, bot.gold - 2)
+          bot.currentStrength = bot.maxStrength
+          bot.currentWill = bot.maxWill
+          logMsg = `🤖 ${bot.name} se nechal v chrámu plně ošetřit (-2 zl).`
+        } else if (action === 'train_str') {
+          bot.experience -= 4
+          bot.maxStrength += 1
+          bot.currentStrength += 1
+          logMsg = `🤖 ${bot.name} trénoval na cvičišti (+1 Max Síla).`
+        } else if (action === 'train_will') {
+          bot.experience -= 4
+          bot.maxWill += 1
+          bot.currentWill += 1
+          logMsg = `🤖 ${bot.name} meditoval v chrámu (+1 Max Vůle).`
+        } else if (action === 'buy_item') {
+          const item = pickAIBestItem(bot)
+          if (item) {
+            bot.gold -= item.price
+            bot.inventory.push(item)
+            logMsg = `🤖 ${bot.name} koupil na tržišti ${item.name} (-${item.price} zl).`
+          }
+        } else if (action === 'enter_sphere') {
+          const sphere = ASTRAL_SPHERES.find((s) => s.id === currentTile.hasAstralGate)
+          if (sphere) {
+            const combatRes = resolveAICombat(bot, sphere.guardian, true)
+            bot.currentStrength = combatRes.newStrength
+            bot.currentWill = combatRes.newWill
+
+            if (combatRes.playerWon) {
+              bot.gold += sphere.guardian.rewardGold
+              bot.experience += sphere.guardian.rewardExp
+              bot.artifacts.push(sphere.artifact)
+              setClaimedSpheres((c) => ({ ...c, [sphere.id]: bot.name }))
+              logMsg = `🏆 🤖 ${bot.name} porazil Strážce a získal ${sphere.artifact.name}!`
+            } else {
+              bot.currentStrength = bot.maxStrength
+              bot.currentWill = bot.maxWill
+              bot.currentTileId = bot.heroClass.startTileId
+              bot.gold = Math.floor(bot.gold / 2)
+              logMsg = `💀 🤖 ${bot.name} padl v boji se Strážcem a probudil se ve městě.`
+            }
+          }
+        } else if (action === 'rest') {
+          if (bot.currentStrength < bot.maxStrength) {
+            bot.currentStrength += 1
+            logMsg = `🤖 ${bot.name} odpočívá v táboře (+1 Síla).`
+          } else {
+            bot.currentWill = Math.min(bot.maxWill, bot.currentWill + 1)
+            logMsg = `🤖 ${bot.name} odpočívá v táboře (+1 Vůle).`
+          }
+        } else if (action === 'draw_card') {
+          const terrain =
+            currentTile.terrain === 'forest' ||
+            currentTile.terrain === 'mountain' ||
+            currentTile.terrain === 'plains' ||
+            currentTile.terrain === 'water'
+              ? currentTile.terrain
+              : 'forest'
+          const card = drawCardForTerrain(terrain)
+
+          if (card.type === 'treasure') {
+            bot.gold += card.rewardGold || 0
+            bot.experience += card.rewardExp || 0
+            logMsg = `🤖 ${bot.name} našel poklad: ${card.name} (+${card.rewardGold || 0} zl, +${card.rewardExp || 0} exp).`
+          } else if (card.monster) {
+            const combatRes = resolveAICombat(bot, card.monster, false)
+            bot.currentStrength = combatRes.newStrength
+            bot.currentWill = combatRes.newWill
+
+            if (combatRes.playerWon) {
+              bot.gold += card.monster.rewardGold
+              bot.experience += card.monster.rewardExp
+              logMsg = `🤖 ${bot.name} v boji porazil ${card.monster.name} (+${card.monster.rewardGold} zl, +${card.monster.rewardExp} exp).`
+            } else {
+              bot.currentStrength = bot.maxStrength
+              bot.currentWill = bot.maxWill
+              bot.currentTileId = bot.heroClass.startTileId
+              bot.gold = Math.floor(bot.gold / 2)
+              logMsg = `💀 🤖 ${bot.name} podlehl v boji s ${card.monster.name} a obrodil se ve městě.`
+            }
+          }
+        }
+
+        updatedPlayers[game.activePlayerIndex] = bot
+        setHasCompletedTileAction(true)
+
+        let winner = game.winner
+        if (bot.artifacts.length >= 4) {
+          winner = bot
+        }
+
+        const nextState: GameState = {
+          ...game,
+          players: updatedPlayers,
+          winner,
+          gameLog: logMsg ? [logMsg, ...game.gameLog.slice(0, 15)] : game.gameLog,
+        }
+        pushStateUpdate(nextState)
+      }, 1200)
+
+      return () => {
+        isMounted = false
+        clearTimeout(timer)
+      }
+    }
+
+    // Step 3: AI ends turn
+    if (hasCompletedTileAction) {
+      const timer = setTimeout(() => {
+        if (!isMounted) return
+        handleEndTurn()
+      }, 1000)
+
+      return () => {
+        isMounted = false
+        clearTimeout(timer)
+      }
+    }
+  }, [
+    appScreen,
+    activePlayer,
+    hasRolledForMove,
+    hasCompletedTileAction,
+    game.winner,
+    game.activePlayerIndex,
+    claimedSpheres,
+    currentTile,
+  ])
+
   // If user is on Lobby Screen, render LobbyScreen
   if (appScreen === 'LOBBY') {
     return (
       <LobbyScreen
         onStartHotseat={handleStartHotseat}
+        onStartAI={handleStartAI}
         onCreateOnlineRoom={handleCreateOnlineRoom}
         onJoinOnlineRoom={handleJoinOnlineRoom}
         onStartOnlineGame={handleStartOnlineGame}

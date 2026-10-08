@@ -4,6 +4,7 @@ import { RoomSeat } from '../engine/multiplayer'
 
 interface LobbyScreenProps {
   onStartHotseat: (p1HeroId: string, p2HeroId: string) => void
+  onStartAI: (playerHeroId: string, aiHeroId: string, playerName: string) => void
   onCreateOnlineRoom: (name: string, heroClassId: string) => Promise<string | null>
   onJoinOnlineRoom: (code: string, name: string, heroClassId: string) => Promise<boolean>
   onStartOnlineGame: () => Promise<void>
@@ -16,6 +17,7 @@ interface LobbyScreenProps {
 
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   onStartHotseat,
+  onStartAI,
   onCreateOnlineRoom,
   onJoinOnlineRoom,
   onStartOnlineGame,
@@ -25,7 +27,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   seats,
   initialJoinCode = '',
 }) => {
-  const [activeTab, setActiveTab] = useState<'online' | 'hotseat'>('online')
+  const [activeTab, setActiveTab] = useState<'ai' | 'online' | 'hotseat'>('ai')
   const [onlineAction, setOnlineAction] = useState<'create' | 'join'>(
     initialJoinCode ? 'join' : 'create'
   )
@@ -33,6 +35,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   // Player configurations
   const [playerName, setPlayerName] = useState(mySeat === 'p2' ? 'Hrdina 2' : 'Hrdina 1')
   const [selectedHeroId, setSelectedHeroId] = useState('warrior')
+  const [aiHeroId, setAiHeroId] = useState('mage')
   const [inputCode, setInputCode] = useState(initialJoinCode || '')
 
   // Hotseat configurations
@@ -225,11 +228,21 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
         ) : (
           /* Main Lobby Card: Mode Selection & Setup */
           <div className="w-full bg-stone-900/90 border-2 border-stone-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-6">
-            {/* Mode Switch Tabs */}
-            <div className="grid grid-cols-2 p-1.5 bg-stone-950 rounded-2xl border border-stone-800">
+            {/* Mode Switch Tabs: AI / Online / Hotseat */}
+            <div className="grid grid-cols-3 p-1.5 bg-stone-950 rounded-2xl border border-stone-800 gap-1">
+              <button
+                onClick={() => setActiveTab('ai')}
+                className={`py-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                  activeTab === 'ai'
+                    ? 'bg-amber-500 text-stone-950 shadow-md'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
+              >
+                🤖 Proti AI (Sólo)
+              </button>
               <button
                 onClick={() => setActiveTab('online')}
-                className={`py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                className={`py-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'online'
                     ? 'bg-amber-500 text-stone-950 shadow-md'
                     : 'text-stone-400 hover:text-stone-200'
@@ -239,15 +252,103 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('hotseat')}
-                className={`py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                className={`py-2.5 rounded-xl font-extrabold text-[11px] sm:text-xs uppercase tracking-wider transition-all cursor-pointer ${
                   activeTab === 'hotseat'
                     ? 'bg-amber-500 text-stone-950 shadow-md'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
-                👥 Lokální (Hotseat)
+                👥 Hotseat
               </button>
             </div>
+
+            {/* TAB: SINGLEPLAYER VS AI */}
+            {activeTab === 'ai' && (
+              <div className="flex flex-col gap-5">
+                <p className="text-xs text-stone-400 leading-relaxed m-0">
+                  Hraj sám proti počítačem řízenému hrdinovi (AI). Bot automaticky hází kostkami, nakupuje na tržištích, léčí se v chrámech a vyzývá strážce sfér k boji.
+                </p>
+
+                <div className="flex flex-col gap-3.5">
+                  <div>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                      Tvé jméno
+                    </label>
+                    <input
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      maxLength={20}
+                      className="w-full mt-1.5 p-3 bg-stone-950 border border-stone-800 rounded-xl text-sm font-bold text-stone-100 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                      Vyber svého hrdinu
+                    </label>
+                    <p className="sm:hidden text-[11px] text-stone-500 mt-1">Posuň do strany pro další hrdiny.</p>
+                    <div className="flex overflow-x-auto snap-x snap-mandatory sm:grid sm:grid-cols-3 gap-2 mt-1.5 pb-2">
+                      {HERO_CLASSES.map((hero) => {
+                        const isSelected = selectedHeroId === hero.id
+                        return (
+                          <button
+                            key={hero.id}
+                            type="button"
+                            onClick={() => setSelectedHeroId(hero.id)}
+                            className={`min-w-[132px] sm:min-w-0 snap-start p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-400'
+                                : 'bg-stone-950 border-stone-800 hover:border-stone-700'
+                            }`}
+                          >
+                            {hero.image ? (
+                              <img
+                                src={hero.image}
+                                alt={hero.name}
+                                className="w-10 h-10 rounded-lg object-cover border border-amber-500/40 shadow-sm shrink-0"
+                              />
+                            ) : (
+                              <span className="text-2xl">{hero.avatar}</span>
+                            )}
+                            <div>
+                              <div className="font-bold text-xs text-stone-200">{hero.name}</div>
+                              <div className="text-[10px] text-stone-400 line-clamp-1">
+                                {hero.title}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                      Soupeř (Počítač / AI Bot)
+                    </label>
+                    <select
+                      value={aiHeroId}
+                      onChange={(e) => setAiHeroId(e.target.value)}
+                      className="w-full mt-1.5 p-3 bg-stone-950 border border-stone-800 rounded-xl text-xs font-bold text-stone-100"
+                    >
+                      {HERO_CLASSES.filter((h) => h.id !== selectedHeroId).map((h) => (
+                        <option key={h.id} value={h.id}>
+                          🤖 {h.avatar} {h.name} ({h.title})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => onStartAI(selectedHeroId, aiHeroId, playerName)}
+                    className="mt-2 w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-stone-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg cursor-pointer transition-all"
+                  >
+                    ⚔️ Spustit hru proti AI
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* TAB: ONLINE MULTIPLAYER */}
             {activeTab === 'online' && (
